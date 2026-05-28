@@ -48,8 +48,9 @@ read plan → confirm with user → branch → execute steps → test + commit p
 6. **Pre-commit gate** (per step):
    - Run the project's test command — must pass
    - Explicitly invoke `nish-ai-coding` for principle review of the changes
-   - If either fails, fix before committing; do NOT commit broken state
-7. **Commit**: use the step's declared commit message from the plan
+   - Validate the step's planned commit message against `nish-ai-github` format (lowercase prefix, imperative, no body)
+   - If any of the above fails, fix before committing; do NOT commit broken state
+7. **Commit**: invoke `nish-ai-github`, then commit with the step's declared message from the plan
 8. **Loop** until all steps complete
 9. **Handoff**: post the plan's Test Plan checklist and say:
 

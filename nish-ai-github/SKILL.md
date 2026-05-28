@@ -11,6 +11,8 @@ description: >
 
 `prefix: short phrase` — lowercase prefix, no body, imperative phrase.
 
+No body. No trailers. No `Co-Authored-By` unless the user explicitly asks. Subject line only.
+
 | Prefix | Use |
 |--------|-----|
 | `init` | First commit of a new repo. Extends to the first few while bootstrapping, never after |
