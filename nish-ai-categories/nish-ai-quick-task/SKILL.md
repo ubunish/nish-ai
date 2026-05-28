@@ -33,7 +33,7 @@ What still applies (because auto-active):
 What does NOT apply:
 - `nish-ai-project-planning` — no plan file
 - `nish-ai-goal-oriented-coding` — no branch, no commit per step, no handoff ceremony
-- `nish-ai-github` commit workflow — user commits at their own discretion
+- `nish-ai-github` planning ceremony — no pre-planned commits, no working branch; user commits at their own discretion. Format rules (prefix, phrasing, no body) still apply when a commit is made.
 
 ## Execution
 
