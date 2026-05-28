@@ -70,6 +70,42 @@ install_hook() {
   echo "  add    SessionStart hook -> $SETTINGS_FILE"
 }
 
+auto_memory_disabled() {
+  [[ -f "$SETTINGS_FILE" ]] || return 1
+  jq -e '.autoMemoryEnabled == false' "$SETTINGS_FILE" >/dev/null
+}
+
+install_auto_memory() {
+  require_jq
+  mkdir -p "$(dirname "$SETTINGS_FILE")"
+  [[ -f "$SETTINGS_FILE" ]] || echo '{}' > "$SETTINGS_FILE"
+
+  if auto_memory_disabled; then
+    echo "  skip   autoMemoryEnabled (already false)"
+    return
+  fi
+
+  local tmp; tmp="$(mktemp)"
+  jq '.autoMemoryEnabled = false' "$SETTINGS_FILE" > "$tmp"
+  mv "$tmp" "$SETTINGS_FILE"
+  echo "  set    autoMemoryEnabled=false -> $SETTINGS_FILE"
+}
+
+uninstall_auto_memory() {
+  [[ -f "$SETTINGS_FILE" ]] || { echo "  skip   autoMemoryEnabled (no settings file)"; return; }
+  require_jq
+
+  if ! jq -e 'has("autoMemoryEnabled")' "$SETTINGS_FILE" >/dev/null; then
+    echo "  skip   autoMemoryEnabled (not set)"
+    return
+  fi
+
+  local tmp; tmp="$(mktemp)"
+  jq 'del(.autoMemoryEnabled)' "$SETTINGS_FILE" > "$tmp"
+  mv "$tmp" "$SETTINGS_FILE"
+  echo "  remove autoMemoryEnabled"
+}
+
 uninstall_skills() {
   local count=0
   while IFS= read -r src; do
@@ -139,19 +175,38 @@ status_hook() {
   fi
 }
 
+status_auto_memory() {
+  if [[ ! -f "$SETTINGS_FILE" ]]; then
+    printf "  %-10s autoMemoryEnabled (no settings file)\n" "missing"
+    return
+  fi
+  if ! command -v jq >/dev/null; then
+    printf "  %-10s autoMemoryEnabled (jq not installed; cannot verify)\n" "unknown"
+    return
+  fi
+  if auto_memory_disabled; then
+    printf "  %-10s autoMemoryEnabled=false\n" "set"
+  else
+    printf "  %-10s autoMemoryEnabled\n" "missing"
+  fi
+}
+
 cmd_install() {
   install_skills
   install_hook
+  install_auto_memory
 }
 
 cmd_uninstall() {
   uninstall_skills
   uninstall_hook
+  uninstall_auto_memory
 }
 
 cmd_status() {
   status_skills
   status_hook
+  status_auto_memory
 }
 
 case "${1:-install}" in

@@ -9,7 +9,7 @@ git clone https://github.com/ubunish/nish-ai.git ~/nish-ai
 cd ~/nish-ai && ./install.sh
 ```
 
-Symlinks skills into `~/.claude/skills/` and adds SessionStart hook to `~/.claude/settings.json`. Requires `jq` (`brew install jq`).
+Symlinks skills into `~/.claude/skills/`, adds SessionStart hook to `~/.claude/settings.json`, and sets `autoMemoryEnabled: false` to disable auto-memory. Requires `jq` (`brew install jq`).
 
 ## Commands
 
