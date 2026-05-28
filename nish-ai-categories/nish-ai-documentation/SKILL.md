@@ -10,6 +10,10 @@ description: >
   principle; commits follow nish-ai-github.
 ---
 
+## Thinking
+
+None. Doc work is structure + prose — mechanical. Do not inject thinking keywords.
+
 ## Scope
 
 | Type | Skill applies to |

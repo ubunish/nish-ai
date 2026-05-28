@@ -9,6 +9,18 @@ description: >
   merge. Does NOT plan inline.
 ---
 
+## Thinking
+
+| Phase | Keyword |
+|-------|---------|
+| Load plan + confirm | `think` |
+| Dependency analysis | `think` |
+| Code-writing inside a step | none |
+| Pre-commit gate (test + principle review) | `think` |
+| Commit + handoff | none |
+
+Inject the keyword at the start of the response that opens the phase. Drop it once the phase is done.
+
 ## Prerequisite
 
 A plan must exist at `plans/YYYY-MM-DD-PLAN.md` (latest if multiple).

@@ -9,6 +9,10 @@ description: >
   touched) still apply. User commits at their own discretion.
 ---
 
+## Thinking
+
+None. Chores are mechanical. Do not inject thinking keywords. If a chore turns out to need reasoning, that signals a re-categorization, not a thinking bump.
+
 ## Scope
 
 Light-touch housekeeping. Common cases:

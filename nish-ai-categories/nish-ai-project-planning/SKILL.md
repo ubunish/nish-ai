@@ -9,6 +9,10 @@ description: >
   Session ends after plan is written — execution is a separate session.
 ---
 
+## Thinking
+
+Begin every grilling-phase response with the keyword `ultrathink`. Scope: question-generation, codebase exploration, decision-tree walk, plan drafting. Drop the keyword once the user approves the plan — file-writing and `.gitignore` edits are mechanical.
+
 ## Workflow
 
 ```

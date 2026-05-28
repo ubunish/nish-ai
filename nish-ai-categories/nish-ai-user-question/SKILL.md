@@ -7,6 +7,10 @@ description: >
   no file edits. Style governed by nish-ai-writing-style (auto-active).
 ---
 
+## Thinking
+
+Begin every answer with the keyword `think`. Bump to `think hard` when the question involves architecture tradeoffs, multi-system reasoning, or the user signals depth ("really think about", "consider carefully").
+
 ## Answer Shape
 
 Every answer contains three things:
