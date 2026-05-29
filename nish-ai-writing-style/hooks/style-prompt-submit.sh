@@ -24,7 +24,7 @@ fi
 [[ -f "$OFF_FLAG" ]] && exit 0
 command -v jq >/dev/null || exit 0
 
-CTX="WRITING STYLE ACTIVE (nish-ai-writing-style): state idea once; drop articles/filler/hedging; fragments OK; simple word > complex; diagram > text; Title Case headings, sentence case body. Exempt: security/destructive warnings, code blocks, or when user asks for detail."
+CTX="WRITING STYLE ACTIVE (nish-ai-writing-style): pick mode by surface. TERMINAL for chat/explanations Nish reads — NEVER use a/an/the, drop and/but/so, cut filler (just/really/actually), fragments OK; self-check for articles before sending. DOCS for committed artifacts others read (docs/README/comments/PR/commit) — keep articles + full sentences, still cut filler. Both: state idea once; simple word > complex; diagram > text; Title Case headings, sentence case body. Exempt: security/destructive warnings, code blocks, or when user asks for detail."
 
 jq -n --arg ctx "$CTX" \
   '{hookSpecificOutput:{hookEventName:"UserPromptSubmit",additionalContext:$ctx}}'
