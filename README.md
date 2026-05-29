@@ -9,7 +9,7 @@ git clone https://github.com/ubunish/nish-ai.git ~/nish-ai
 cd ~/nish-ai && ./install.sh
 ```
 
-Symlinks skills into `~/.claude/skills/`, slash commands into `~/.claude/commands/`, adds SessionStart hook to `~/.claude/settings.json`, and sets `autoMemoryEnabled: false` to disable auto-memory. Requires `jq` (`brew install jq`).
+Symlinks skills into `~/.claude/skills/`, slash commands into `~/.claude/commands/`, adds the router, writing-style, and commit-validator hooks to `~/.claude/settings.json`, and sets `autoMemoryEnabled: false` to disable auto-memory. Requires `jq` (`brew install jq`).
 
 ## Commands
 
@@ -40,6 +40,27 @@ Symlinked into `~/.claude/commands/` by `install.sh`.
 | Command | Action |
 |---------|--------|
 | `/merge` | Merge the current branch into `main` without a PR, push, and delete the branch (local + remote) |
+
+## Repo Layout
+
+```
+nish-ai/
+├── install.sh                  link skills + commands, wire hooks
+├── commands/                   slash commands → ~/.claude/commands/
+│   └── merge.md
+├── nish-ai-writing-style/      always-on prose style (+ hooks/)
+├── nish-ai-github/             commit/branch/PR conventions (+ hooks/)
+├── nish-ai-prompt-recognition/ session router (+ hooks/)
+└── nish-ai-categories/         skills dispatched by the router
+    ├── nish-ai-coding/
+    ├── nish-ai-project-planning/
+    ├── nish-ai-user-question/
+    ├── nish-ai-goal-oriented-coding/
+    ├── nish-ai-documentation/
+    └── nish-ai-quick-task/
+```
+
+`install.sh` finds every `SKILL.md` by `find`, so the `nish-ai-categories/` grouping is for repo organization only — skills link into `~/.claude/skills/` by basename, flat.
 
 ## Architecture
 
@@ -100,9 +121,11 @@ flowchart TD
     subgraph hook["hook-enforced"]
         SS["SessionStart hook<br/>inject full ruleset"]
         UP["UserPromptSubmit hook<br/>per-turn reminder + off-flag toggle"]
+        SL["statusLine hook<br/>render style:on/off badge"]
         PV["PreToolUse(Bash) hook<br/>validate commit message"]
         SS --> WS["nish-ai-writing-style"]
         UP --> WS
+        SL --> WS
         PV --> GH["nish-ai-github"]
     end
     subgraph disc["skill-discovery"]
@@ -115,11 +138,11 @@ flowchart TD
 
 | Skill | Mechanism | Triggers on | Off switch |
 |-------|-----------|-------------|------------|
-| `nish-ai-writing-style` | Hooks (SessionStart + UserPromptSubmit) | Every session + every turn | "drop style" / "verbose mode" → off-flag; "resume style" → on |
+| `nish-ai-writing-style` | Hooks (SessionStart + UserPromptSubmit + statusLine badge) | Every session + every turn | "drop style" / "verbose mode" → off-flag; "resume style" → on |
 | `nish-ai-coding` | Skill discovery | Any source-code write or edit | "drop coding style" |
 | `nish-ai-github` | PreToolUse(Bash) validator + explicit invoke | Every `git commit`; commit / branch / PR boundary | validator denies malformed commits, not user-toggleable |
 
-Off-flag lives at `~/.claude/.nish-style-off`. Present → both style hooks no-op. Toggled by phrase, persists across turns.
+Off-flag lives at `~/.claude/.nish-style-off`. Present → both style hooks no-op. Toggled by phrase, persists across turns. The `statusLine` hook (`style-statusline.sh`) reads the same flag and renders a `✎ style:on` / `✎ style:off` badge so the active state is visible. It ships with the repo but is wired via the `statusLine` setting, not by `install.sh`.
 
 #### Writing-Style Modes
 
