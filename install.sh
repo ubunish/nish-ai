@@ -3,6 +3,7 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILLS_DIR="$HOME/.claude/skills"
+COMMANDS_DIR="$HOME/.claude/commands"
 SETTINGS_FILE="$HOME/.claude/settings.json"
 
 # Session router: hard-dispatch via injected ruleset, not a soft pointer.
@@ -36,6 +37,11 @@ find_skills() {
     -not -path '*/.git/*' \
     -not -path '*/node_modules/*' \
     -print0 | xargs -0 -n1 dirname
+}
+
+find_commands() {
+  [[ -d "$REPO_DIR/commands" ]] || return 0
+  find "$REPO_DIR/commands" -maxdepth 1 -name '*.md' -type f
 }
 
 # Generic hook helpers, keyed by event + a command-substring marker (regex).
@@ -157,6 +163,66 @@ install_skills() {
   echo "skills: $count linked"
 }
 
+install_commands() {
+  local cmds; cmds="$(find_commands)"
+  [[ -n "$cmds" ]] || { echo "commands: 0 to link"; return; }
+  mkdir -p "$COMMANDS_DIR"
+  local count=0
+  while IFS= read -r src; do
+    [[ -n "$src" ]] || continue
+    local name target backup
+    name="$(basename "$src")"
+    target="$COMMANDS_DIR/$name"
+
+    if [[ -L "$target" && "$(readlink "$target")" == "$src" ]]; then
+      echo "  skip   $name (already linked)"
+    else
+      if [[ -e "$target" || -L "$target" ]]; then
+        backup="$target.bak-$(date +%Y%m%d-%H%M%S)"
+        mv "$target" "$backup"
+        echo "  backup $name -> $(basename "$backup")"
+      fi
+      ln -s "$src" "$target"
+      echo "  link   $name"
+    fi
+    count=$((count + 1))
+  done <<< "$cmds"
+  echo "commands: $count linked"
+}
+
+uninstall_commands() {
+  local count=0
+  while IFS= read -r src; do
+    [[ -n "$src" ]] || continue
+    local name target
+    name="$(basename "$src")"
+    target="$COMMANDS_DIR/$name"
+    if [[ -L "$target" && "$(readlink "$target")" == "$src" ]]; then
+      rm "$target"
+      echo "  unlink $name"
+      count=$((count + 1))
+    fi
+  done <<< "$(find_commands)"
+  echo "commands: $count unlinked"
+}
+
+status_commands() {
+  while IFS= read -r src; do
+    [[ -n "$src" ]] || continue
+    local name target state
+    name="$(basename "$src")"
+    target="$COMMANDS_DIR/$name"
+    if [[ -L "$target" && "$(readlink "$target")" == "$src" ]]; then
+      state="linked"
+    elif [[ -e "$target" || -L "$target" ]]; then
+      state="conflict"
+    else
+      state="missing"
+    fi
+    printf "  %-10s %s\n" "$state" "$name"
+  done <<< "$(find_commands)"
+}
+
 install_recognition_hooks() {
   # Drop the legacy soft-pointer SessionStart hook before adding the new pair.
   remove_hook SessionStart "$LEGACY_RECOG_MARKER" "legacy router hook"
@@ -271,6 +337,7 @@ status_auto_memory() {
 
 cmd_install() {
   install_skills
+  install_commands
   install_recognition_hooks
   install_style_hooks
   install_github_hook
@@ -279,6 +346,7 @@ cmd_install() {
 
 cmd_uninstall() {
   uninstall_skills
+  uninstall_commands
   uninstall_recognition_hooks
   uninstall_style_hooks
   uninstall_github_hook
@@ -287,6 +355,7 @@ cmd_uninstall() {
 
 cmd_status() {
   status_skills
+  status_commands
   status_recognition_hooks
   status_style_hooks
   status_github_hook
