@@ -23,7 +23,7 @@ Symlinks skills into `~/.claude/skills/`, adds SessionStart hook to `~/.claude/s
 
 | Skill | Purpose |
 |-------|---------|
-| `nish-ai-writing-style` | Auto-active prose style |
+| `nish-ai-writing-style` | Auto-active prose style, two modes by surface (TERMINAL / DOCS) |
 | `nish-ai-github` | Commit + branch + PR conventions |
 | `nish-ai-prompt-recognition` | Session router (fires once) |
 | `nish-ai-coding` | Auto-active coding principles |
@@ -110,6 +110,24 @@ flowchart TD
 | `nish-ai-github` | PreToolUse(Bash) validator + explicit invoke | Every `git commit`; commit / branch / PR boundary | validator denies malformed commits, not user-toggleable |
 
 Off-flag lives at `~/.claude/.nish-style-off`. Present → both style hooks no-op. Toggled by phrase, persists across turns.
+
+#### Writing-Style Modes
+
+`nish-ai-writing-style` picks one of two modes per response, chosen by output surface:
+
+| Mode | Surface | Rule |
+|------|---------|------|
+| `TERMINAL` | Chat replies, explanations Nish reads (ephemeral) | Unconditional caveman — never use a/an/the, drop and/but/so, cut filler, fragments OK. No per-sentence judgement, so no drift. |
+| `DOCS` | Committed artifacts others read (docs, README, code comments, PR/commit messages) | Readable-terse — keep articles and full sentences, still cut filler. Stays professional for a cold reader. |
+
+```
+chat / explanations          → TERMINAL
+docs / README / comments     → DOCS
+PR / commit messages         → DOCS
+security / destructive / "explain more"  → exempt, full prose
+```
+
+Both modes share: state idea once, simple word over complex, diagram over text, Title Case headings, sentence case body.
 
 ### Categories
 
