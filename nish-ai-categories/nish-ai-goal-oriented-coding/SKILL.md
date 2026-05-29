@@ -82,3 +82,7 @@ Do NOT commit work that is not in the plan.
 ## Lifetime
 
 Session-active after dispatch by `nish-ai-prompt-recognition`. Persists until all plan steps are committed and handoff message is posted. Then waits for user — does not auto-push or auto-merge.
+
+## Output Style (Recency Anchor)
+
+This section sits last on purpose: after dispatch it is the freshest part of the skill body, so task voice cannot displace house style. Every user-facing line this session — chat replies, explanations, and one-line tool preambles ("let me check…", "reading X…") — follows `nish-ai-writing-style` TERMINAL mode: no a/an/the, fragments over full sentences, self-check each line before sending. Committed prose (docs/README/comments/commit messages) uses DOCS mode instead.

@@ -23,11 +23,13 @@ STYLE_SS_CMD='bash "$HOME/.claude/skills/nish-ai-writing-style/hooks/style-sessi
 STYLE_UP_CMD='bash "$HOME/.claude/skills/nish-ai-writing-style/hooks/style-prompt-submit.sh"'
 STYLE_SS_MARKER='style-session-start\.sh'
 STYLE_UP_MARKER='style-prompt-submit\.sh'
-# Post-dispatch re-anchor: PostToolUse on Skill, re-injects the TERMINAL reminder
-# after a nish-ai-* skill loads so the dispatched skill's register cannot drift
-# the model back to full prose mid-turn.
+# Mid-turn re-anchor: PostToolUse re-injects the TERMINAL reminder after the
+# tools whose results bury writing style by recency — Skill dispatch plus the
+# exploration/edit tail (Bash, Read, Edit, Write, Grep, Glob) — so the model
+# does not drift back to full prose between tool calls.
 STYLE_PT_CMD='bash "$HOME/.claude/skills/nish-ai-writing-style/hooks/style-post-skill.sh"'
 STYLE_PT_MARKER='style-post-skill\.sh'
+STYLE_PT_MATCHER='Bash|Edit|Write|Read|Grep|Glob|Skill'
 
 # Commit-format validator: PreToolUse on Bash, auto-fixes or blocks malformed git commits.
 GH_VALIDATE_CMD='bash "$HOME/.claude/skills/nish-ai-github/hooks/validate-commit.sh"'
@@ -113,7 +115,7 @@ remove_hook() { # $1=event $2=marker $3=label
 install_style_hooks() {
   add_hook SessionStart    "$STYLE_SS_CMD" "$STYLE_SS_MARKER" "writing-style SessionStart hook"
   add_hook UserPromptSubmit "$STYLE_UP_CMD" "$STYLE_UP_MARKER" "writing-style UserPromptSubmit hook"
-  add_hook PostToolUse     "$STYLE_PT_CMD" "$STYLE_PT_MARKER" "writing-style PostToolUse re-anchor" "Skill"
+  add_hook PostToolUse     "$STYLE_PT_CMD" "$STYLE_PT_MARKER" "writing-style PostToolUse re-anchor" "$STYLE_PT_MATCHER"
 }
 
 uninstall_style_hooks() {
