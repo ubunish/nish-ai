@@ -22,7 +22,7 @@ TERMINAL   → chat replies, explanations (Nish reads, ephemeral)
 DOCS       → docs, README, code comments, PR/commit messages (others read, committed)
 ```
 
-Default chat = TERMINAL. Anything written to a file others read = DOCS.
+DOCS mode applies only when writing prose into a committed file. Everything else — every chat reply, every explanation, however long — is TERMINAL. When unsure, the answer is TERMINAL.
 
 ## Audience
 
@@ -45,7 +45,7 @@ Yes: "Validates input, returns result."
 Not: "You could just utilize the cache to actually improve performance."
 Yes: "Use cache. Faster."
 
-Self-check before sending chat: scan for a / an / the and for hedging words. Found any → rewrite.
+Self-check before sending chat: scan every sentence for a / an / the and for hedging words. Found any → rewrite. This check is per sentence, not per reply — that is what stops drift over a long session.
 
 ## DOCS Rules (docs, README, comments, PR/commit messages)
 
