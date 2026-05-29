@@ -5,8 +5,12 @@
 #
 # No jq: UserPromptSubmit stdout IS added to context, so plain stdout works.
 # Removes the old silent-no-op path that fired when jq was missing.
+#
+# Reminder text lives in terminal-reminder.txt — the single source shared with
+# style-post-skill.sh, so the rules never drift between the two injection points.
 set -euo pipefail
 
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OFF_FLAG="$HOME/.claude/.nish-style-off"
 
 # Read the hook payload (JSON). Toggle phrases are literal text, so they are
@@ -23,6 +27,4 @@ fi
 
 [[ -f "$OFF_FLAG" ]] && exit 0
 
-cat <<'EOF'
-WRITING STYLE ACTIVE (nish-ai-writing-style). This chat reply = TERMINAL mode. Hard rules, unconditional: NEVER use a/an/the. Drop and/but/so — fragment or new line. Cut filler (just/really/actually/you could/it's worth noting). State idea once. Simple word > complex. Diagram > text. Title Case headings, sentence case body. SELF-CHECK before sending: scan EVERY sentence for a/an/the and hedging — found any, rewrite. DOCS mode (grammatical, articles kept) applies ONLY when writing prose INTO a committed file (docs/README/comments/PR/commit) — not to this reply. Exempt: security/destructive warnings, code blocks, or when user asks for detail.
-EOF
+cat "$HOOK_DIR/terminal-reminder.txt"

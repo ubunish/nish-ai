@@ -23,6 +23,11 @@ STYLE_SS_CMD='bash "$HOME/.claude/skills/nish-ai-writing-style/hooks/style-sessi
 STYLE_UP_CMD='bash "$HOME/.claude/skills/nish-ai-writing-style/hooks/style-prompt-submit.sh"'
 STYLE_SS_MARKER='style-session-start\.sh'
 STYLE_UP_MARKER='style-prompt-submit\.sh'
+# Post-dispatch re-anchor: PostToolUse on Skill, re-injects the TERMINAL reminder
+# after a nish-ai-* skill loads so the dispatched skill's register cannot drift
+# the model back to full prose mid-turn.
+STYLE_PT_CMD='bash "$HOME/.claude/skills/nish-ai-writing-style/hooks/style-post-skill.sh"'
+STYLE_PT_MARKER='style-post-skill\.sh'
 
 # Commit-format validator: PreToolUse on Bash, blocks malformed git commits.
 GH_VALIDATE_CMD='bash "$HOME/.claude/skills/nish-ai-github/hooks/validate-commit.sh"'
@@ -36,7 +41,19 @@ find_skills() {
   find "$REPO_DIR" -name SKILL.md \
     -not -path '*/.git/*' \
     -not -path '*/node_modules/*' \
-    -print0 | xargs -0 -n1 dirname
+    -print0 | while IFS= read -r -d '' f; do
+      local dir p
+      dir="$(dirname "$f")"
+      # Skip skills inside a nested git repo (vendored/reference clones, e.g. a
+      # caveman/ checkout dropped in for comparison). Walk ancestors up to
+      # REPO_DIR; if any holds its own .git, the skill is not ours to install.
+      p="$dir"
+      while [[ "$p" != "$REPO_DIR" && "$p" != "/" ]]; do
+        [[ -e "$p/.git" ]] && continue 2
+        p="$(dirname "$p")"
+      done
+      printf '%s\n' "$dir"
+    done
 }
 
 find_commands() {
@@ -96,11 +113,13 @@ remove_hook() { # $1=event $2=marker $3=label
 install_style_hooks() {
   add_hook SessionStart    "$STYLE_SS_CMD" "$STYLE_SS_MARKER" "writing-style SessionStart hook"
   add_hook UserPromptSubmit "$STYLE_UP_CMD" "$STYLE_UP_MARKER" "writing-style UserPromptSubmit hook"
+  add_hook PostToolUse     "$STYLE_PT_CMD" "$STYLE_PT_MARKER" "writing-style PostToolUse re-anchor" "Skill"
 }
 
 uninstall_style_hooks() {
   remove_hook SessionStart     "$STYLE_SS_MARKER" "writing-style SessionStart hook"
   remove_hook UserPromptSubmit "$STYLE_UP_MARKER" "writing-style UserPromptSubmit hook"
+  remove_hook PostToolUse      "$STYLE_PT_MARKER" "writing-style PostToolUse re-anchor"
 }
 
 status_style_hooks() {
@@ -109,7 +128,7 @@ status_style_hooks() {
     return
   fi
   local ev mk
-  for pair in "SessionStart:$STYLE_SS_MARKER" "UserPromptSubmit:$STYLE_UP_MARKER"; do
+  for pair in "SessionStart:$STYLE_SS_MARKER" "UserPromptSubmit:$STYLE_UP_MARKER" "PostToolUse:$STYLE_PT_MARKER"; do
     ev="${pair%%:*}"; mk="${pair##*:}"
     if hook_installed_for "$ev" "$mk"; then
       printf "  %-10s writing-style hook (%s)\n" "installed" "$ev"
