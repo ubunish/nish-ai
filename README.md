@@ -46,6 +46,7 @@ flowchart LR
     I["install.sh"] --> S["symlink SKILL.md dirs<br/>→ ~/.claude/skills/"]
     I --> HR["add router hook<br/>SessionStart → settings.json"]
     I --> HS["add writing-style hooks<br/>SessionStart + UserPromptSubmit"]
+    I --> HV["add commit-format validator<br/>PreToolUse(Bash) → settings.json"]
     I --> M["set autoMemoryEnabled=false<br/>→ settings.json"]
 ```
 
@@ -54,6 +55,7 @@ flowchart LR
 | Symlink | Each skill dir linked into `~/.claude/skills/`, so Claude discovers them |
 | Router hook | SessionStart injects context telling Claude to run the router on first prompt |
 | Style hooks | SessionStart injects full ruleset; UserPromptSubmit re-injects a reminder each turn |
+| Commit validator | PreToolUse(Bash) blocks a `git commit` that breaks nish-ai-github format |
 | Auto-memory off | Disables built-in auto-memory; this system owns workflow state |
 
 All hooks are idempotent; `uninstall` and `status` cover every hook above.
@@ -88,12 +90,13 @@ flowchart TD
     subgraph hook["hook-enforced"]
         SS["SessionStart hook<br/>inject full ruleset"]
         UP["UserPromptSubmit hook<br/>per-turn reminder + off-flag toggle"]
+        PV["PreToolUse(Bash) hook<br/>validate commit message"]
         SS --> WS["nish-ai-writing-style"]
         UP --> WS
+        PV --> GH["nish-ai-github"]
     end
     subgraph disc["skill-discovery"]
         CD["nish-ai-coding<br/>auto-active on code write"]
-        GH["nish-ai-github<br/>invoked at commit gate"]
     end
     WS -.applies to.-> ALL["every session + category"]
     CD -.applies to.-> ALL
@@ -104,7 +107,7 @@ flowchart TD
 |-------|-----------|-------------|------------|
 | `nish-ai-writing-style` | Hooks (SessionStart + UserPromptSubmit) | Every session + every turn | "drop style" / "verbose mode" → off-flag; "resume style" → on |
 | `nish-ai-coding` | Skill discovery | Any source-code write or edit | "drop coding style" |
-| `nish-ai-github` | Explicit invoke | Commit / branch / PR boundary | invoked, not auto |
+| `nish-ai-github` | PreToolUse(Bash) validator + explicit invoke | Every `git commit`; commit / branch / PR boundary | validator denies malformed commits, not user-toggleable |
 
 Off-flag lives at `~/.claude/.nish-style-off`. Present → both style hooks no-op. Toggled by phrase, persists across turns.
 

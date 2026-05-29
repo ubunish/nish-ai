@@ -15,6 +15,10 @@ STYLE_UP_CMD='bash "$HOME/.claude/skills/nish-ai-writing-style/hooks/style-promp
 STYLE_SS_MARKER='style-session-start\.sh'
 STYLE_UP_MARKER='style-prompt-submit\.sh'
 
+# Commit-format validator: PreToolUse on Bash, blocks malformed git commits.
+GH_VALIDATE_CMD='bash "$HOME/.claude/skills/nish-ai-github/hooks/validate-commit.sh"'
+GH_VALIDATE_MARKER='validate-commit\.sh'
+
 require_jq() {
   command -v jq >/dev/null || { echo "jq required (brew install jq)" >&2; exit 1; }
 }
@@ -41,7 +45,7 @@ hook_installed_for() { # $1=event $2=marker
     "$SETTINGS_FILE" >/dev/null
 }
 
-add_hook() { # $1=event $2=cmd $3=marker $4=label
+add_hook() { # $1=event $2=cmd $3=marker $4=label $5=matcher(optional)
   require_jq
   mkdir -p "$(dirname "$SETTINGS_FILE")"
   [[ -f "$SETTINGS_FILE" ]] || echo '{}' > "$SETTINGS_FILE"
@@ -50,10 +54,13 @@ add_hook() { # $1=event $2=cmd $3=marker $4=label
     return
   fi
   local tmp; tmp="$(mktemp)"
-  jq --arg e "$1" --arg cmd "$2" '
+  jq --arg e "$1" --arg cmd "$2" --arg mt "${5:-}" '
     .hooks //= {}
     | .hooks[$e] //= []
-    | .hooks[$e] += [{"hooks": [{"type": "command", "command": $cmd}]}]
+    | .hooks[$e] += [
+        {"hooks": [{"type": "command", "command": $cmd}]}
+        + (if $mt == "" then {} else {"matcher": $mt} end)
+      ]
   ' "$SETTINGS_FILE" > "$tmp"
   mv "$tmp" "$SETTINGS_FILE"
   echo "  add    $4 -> $SETTINGS_FILE"
@@ -103,6 +110,26 @@ status_style_hooks() {
       printf "  %-10s writing-style hook (%s)\n" "missing" "$ev"
     fi
   done
+}
+
+install_github_hook() {
+  add_hook PreToolUse "$GH_VALIDATE_CMD" "$GH_VALIDATE_MARKER" "commit-format validator" "Bash"
+}
+
+uninstall_github_hook() {
+  remove_hook PreToolUse "$GH_VALIDATE_MARKER" "commit-format validator"
+}
+
+status_github_hook() {
+  if [[ ! -f "$SETTINGS_FILE" ]] || ! command -v jq >/dev/null; then
+    printf "  %-10s commit-format validator (cannot verify)\n" "unknown"
+    return
+  fi
+  if hook_installed_for PreToolUse "$GH_VALIDATE_MARKER"; then
+    printf "  %-10s commit-format validator (PreToolUse)\n" "installed"
+  else
+    printf "  %-10s commit-format validator (PreToolUse)\n" "missing"
+  fi
 }
 
 install_skills() {
@@ -274,6 +301,7 @@ cmd_install() {
   install_skills
   install_hook
   install_style_hooks
+  install_github_hook
   install_auto_memory
 }
 
@@ -281,6 +309,7 @@ cmd_uninstall() {
   uninstall_skills
   uninstall_hook
   uninstall_style_hooks
+  uninstall_github_hook
   uninstall_auto_memory
 }
 
@@ -288,6 +317,7 @@ cmd_status() {
   status_skills
   status_hook
   status_style_hooks
+  status_github_hook
   status_auto_memory
 }
 
