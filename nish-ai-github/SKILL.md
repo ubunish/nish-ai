@@ -13,6 +13,8 @@ description: >
 
 No body. No trailers. No `Co-Authored-By` unless the user explicitly asks. Subject line only.
 
+A `PreToolUse` hook enforces this on every `git commit`. A body or `Co-Authored-By` trailer is stripped automatically — the commit is rewritten to subject-only and runs as-is, keeping any `git add … &&` prefix so staging is not lost. Only violations the hook cannot safely fix (bad prefix, capitalized subject, trailing period) are denied.
+
 | Prefix | Use |
 |--------|-----|
 | `init` | First commit of a new repo. Extends to the first few while bootstrapping, never after |

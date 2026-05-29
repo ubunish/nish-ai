@@ -29,7 +29,7 @@ STYLE_UP_MARKER='style-prompt-submit\.sh'
 STYLE_PT_CMD='bash "$HOME/.claude/skills/nish-ai-writing-style/hooks/style-post-skill.sh"'
 STYLE_PT_MARKER='style-post-skill\.sh'
 
-# Commit-format validator: PreToolUse on Bash, blocks malformed git commits.
+# Commit-format validator: PreToolUse on Bash, auto-fixes or blocks malformed git commits.
 GH_VALIDATE_CMD='bash "$HOME/.claude/skills/nish-ai-github/hooks/validate-commit.sh"'
 GH_VALIDATE_MARKER='validate-commit\.sh'
 

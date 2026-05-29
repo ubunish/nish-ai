@@ -85,7 +85,7 @@ flowchart LR
 | Symlink | Each skill dir linked into `~/.claude/skills/`, and each `commands/*.md` into `~/.claude/commands/`, so Claude discovers them |
 | Router hooks | Hard dispatch, not a soft pointer. SessionStart injects the full router ruleset and arms a once-per-session flag; UserPromptSubmit consumes the flag on the first prompt to force categorize + dispatch. Mirrors the writing-style two-hook pattern |
 | Style hooks | SessionStart injects full ruleset; UserPromptSubmit re-injects a reminder each turn |
-| Commit validator | PreToolUse(Bash) blocks a `git commit` that breaks nish-ai-github format |
+| Commit validator | PreToolUse(Bash) auto-rewrites a `git commit` carrying a body or `Co-Authored-By` trailer down to subject-only, preserving any `git add … &&` prefix; denies only what it cannot safely fix (bad prefix, capitalized subject, trailing period) |
 | Auto-memory off | Disables built-in auto-memory; this system owns workflow state |
 
 All hooks are idempotent; `uninstall` and `status` cover every hook above.
@@ -140,7 +140,7 @@ flowchart TD
 |-------|-----------|-------------|------------|
 | `nish-ai-writing-style` | Hooks (SessionStart + UserPromptSubmit + statusLine badge) | Every session + every turn | "drop style" / "verbose mode" → off-flag; "resume style" → on |
 | `nish-ai-coding` | Skill discovery | Any source-code write or edit | "drop coding style" |
-| `nish-ai-github` | PreToolUse(Bash) validator + explicit invoke | Every `git commit`; commit / branch / PR boundary | validator denies malformed commits, not user-toggleable |
+| `nish-ai-github` | PreToolUse(Bash) validator + explicit invoke | Every `git commit`; commit / branch / PR boundary | validator auto-fixes or denies malformed commits, not user-toggleable |
 
 Off-flag lives at `~/.claude/.nish-style-off`. Present → both style hooks no-op. Toggled by phrase, persists across turns. The `statusLine` hook (`style-statusline.sh`) reads the same flag and renders a `✎ style:on` / `✎ style:off` badge so the active state is visible. It ships with the repo but is wired via the `statusLine` setting, not by `install.sh`.
 
