@@ -45,9 +45,20 @@ if ($msgpart =~ /^(?:-m|--message)\s+"\$\(\s*cat\s*<<-?\s*(['"]?)(\w+)\1\s*\n(.*
 }
 
 $extra or exit 0;             # nothing to strip → let the validator's normal flow handle it
-$tail =~ /\S/ and exit 0;     # structure after the message (e.g. `&& git push`) → too risky
 $subject =~ /\S/ or exit 0;   # empty subject → let normal validation handle it
+
+# A tail that chains another shell command (`&& git log`, `&& git push`, `;`, `|`)
+# runs after the commit regardless of its message, so it is safe to keep verbatim
+# — same as the `git add … &&` prefix preserved in $head. Any other leftover
+# (stray flags still bound to `git commit`, e.g. a second `-m`) is too risky → bail.
+my $safe_tail = '';
+if ($tail =~ /\S/) {
+  $tail =~ /^\s*(?:&&|\|\||;|\|)/ or exit 0;   # only a chained shell command may follow
+  $tail =~ /\bgit\s+commit\b/     and exit 0;   # a second commit in the tail → too risky to collapse
+  $tail =~ /co-authored-by/i      and exit 0;   # trailer survives in the tail → refuse, don't run it
+  $safe_tail = $tail;
+}
 
 (my $esc = $subject) =~ s/([\\"\$`])/\\$1/g;   # escape for a double-quoted shell string
 (my $s = $struct) =~ s/\s+$//;
-print $subject . "\x1e" . $head . $s . ' -m "' . $esc . '"';
+print $subject . "\x1e" . $head . $s . ' -m "' . $esc . '"' . $safe_tail;
