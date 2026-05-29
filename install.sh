@@ -5,8 +5,16 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILLS_DIR="$HOME/.claude/skills"
 SETTINGS_FILE="$HOME/.claude/settings.json"
 
-HOOK_CMD='echo '\''{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"Session router active. Invoke the nish-ai-prompt-recognition skill on the first substantive user prompt of this session to categorize and dispatch."}}'\'''
-HOOK_MARKER='nish-ai-prompt-recognition'
+# Session router: hard-dispatch via injected ruleset, not a soft pointer.
+# SessionStart loads the full router body + arms a once-per-session flag;
+# UserPromptSubmit consumes the flag on the first prompt to force dispatch.
+RECOG_SS_CMD='bash "$HOME/.claude/skills/nish-ai-prompt-recognition/hooks/recognition-session-start.sh"'
+RECOG_UP_CMD='bash "$HOME/.claude/skills/nish-ai-prompt-recognition/hooks/recognition-prompt-submit.sh"'
+RECOG_SS_MARKER='recognition-session-start\.sh'
+RECOG_UP_MARKER='recognition-prompt-submit\.sh'
+# Legacy soft-pointer hook removed on upgrade. Marker targets the old echo text,
+# not the path, so it never matches the new script commands.
+LEGACY_RECOG_MARKER='Invoke the nish-ai-prompt-recognition skill'
 
 # Writing-style enforcement hooks (caveman-style: full ruleset at session start,
 # one-line reminder every turn). $HOME expands at hook runtime, not now.
@@ -28,13 +36,6 @@ find_skills() {
     -not -path '*/.git/*' \
     -not -path '*/node_modules/*' \
     -print0 | xargs -0 -n1 dirname
-}
-
-hook_installed() {
-  [[ -f "$SETTINGS_FILE" ]] || return 1
-  jq -e --arg m "$HOOK_MARKER" \
-    '(.hooks.SessionStart // []) | map(.hooks[]? | select(.command? | test($m))) | length > 0' \
-    "$SETTINGS_FILE" >/dev/null
 }
 
 # Generic hook helpers, keyed by event + a command-substring marker (regex).
@@ -156,24 +157,33 @@ install_skills() {
   echo "skills: $count linked"
 }
 
-install_hook() {
-  require_jq
-  mkdir -p "$(dirname "$SETTINGS_FILE")"
-  [[ -f "$SETTINGS_FILE" ]] || echo '{}' > "$SETTINGS_FILE"
+install_recognition_hooks() {
+  # Drop the legacy soft-pointer SessionStart hook before adding the new pair.
+  remove_hook SessionStart "$LEGACY_RECOG_MARKER" "legacy router hook"
+  add_hook SessionStart     "$RECOG_SS_CMD" "$RECOG_SS_MARKER" "router SessionStart hook"
+  add_hook UserPromptSubmit "$RECOG_UP_CMD" "$RECOG_UP_MARKER" "router UserPromptSubmit hook"
+}
 
-  if hook_installed; then
-    echo "  skip   SessionStart hook (already installed)"
+uninstall_recognition_hooks() {
+  remove_hook SessionStart     "$RECOG_SS_MARKER" "router SessionStart hook"
+  remove_hook UserPromptSubmit "$RECOG_UP_MARKER" "router UserPromptSubmit hook"
+  remove_hook SessionStart     "$LEGACY_RECOG_MARKER" "legacy router hook"
+}
+
+status_recognition_hooks() {
+  if [[ ! -f "$SETTINGS_FILE" ]] || ! command -v jq >/dev/null; then
+    printf "  %-10s router hooks (cannot verify)\n" "unknown"
     return
   fi
-
-  local tmp; tmp="$(mktemp)"
-  jq --arg cmd "$HOOK_CMD" '
-    .hooks //= {}
-    | .hooks.SessionStart //= []
-    | .hooks.SessionStart += [{"hooks": [{"type": "command", "command": $cmd}]}]
-  ' "$SETTINGS_FILE" > "$tmp"
-  mv "$tmp" "$SETTINGS_FILE"
-  echo "  add    SessionStart hook -> $SETTINGS_FILE"
+  local ev mk
+  for pair in "SessionStart:$RECOG_SS_MARKER" "UserPromptSubmit:$RECOG_UP_MARKER"; do
+    ev="${pair%%:*}"; mk="${pair##*:}"
+    if hook_installed_for "$ev" "$mk"; then
+      printf "  %-10s router hook (%s)\n" "installed" "$ev"
+    else
+      printf "  %-10s router hook (%s)\n" "missing" "$ev"
+    fi
+  done
 }
 
 auto_memory_disabled() {
@@ -227,28 +237,6 @@ uninstall_skills() {
   echo "skills: $count unlinked"
 }
 
-uninstall_hook() {
-  [[ -f "$SETTINGS_FILE" ]] || { echo "  skip   hook (no settings file)"; return; }
-  require_jq
-
-  if ! hook_installed; then
-    echo "  skip   SessionStart hook (not installed)"
-    return
-  fi
-
-  local tmp; tmp="$(mktemp)"
-  jq --arg m "$HOOK_MARKER" '
-    .hooks.SessionStart |= (
-      map(.hooks |= map(select(.command? | test($m) | not)))
-      | map(select((.hooks // []) | length > 0))
-    )
-    | if (.hooks.SessionStart // []) | length == 0 then del(.hooks.SessionStart) else . end
-    | if (.hooks // {}) == {} then del(.hooks) else . end
-  ' "$SETTINGS_FILE" > "$tmp"
-  mv "$tmp" "$SETTINGS_FILE"
-  echo "  remove SessionStart hook"
-}
-
 status_skills() {
   while IFS= read -r src; do
     local name target state
@@ -263,22 +251,6 @@ status_skills() {
     fi
     printf "  %-10s %s\n" "$state" "$name"
   done < <(find_skills)
-}
-
-status_hook() {
-  if [[ ! -f "$SETTINGS_FILE" ]]; then
-    printf "  %-10s SessionStart hook (no settings file)\n" "missing"
-    return
-  fi
-  if ! command -v jq >/dev/null; then
-    printf "  %-10s SessionStart hook (jq not installed; cannot verify)\n" "unknown"
-    return
-  fi
-  if hook_installed; then
-    printf "  %-10s SessionStart hook\n" "installed"
-  else
-    printf "  %-10s SessionStart hook\n" "missing"
-  fi
 }
 
 status_auto_memory() {
@@ -299,7 +271,7 @@ status_auto_memory() {
 
 cmd_install() {
   install_skills
-  install_hook
+  install_recognition_hooks
   install_style_hooks
   install_github_hook
   install_auto_memory
@@ -307,7 +279,7 @@ cmd_install() {
 
 cmd_uninstall() {
   uninstall_skills
-  uninstall_hook
+  uninstall_recognition_hooks
   uninstall_style_hooks
   uninstall_github_hook
   uninstall_auto_memory
@@ -315,7 +287,7 @@ cmd_uninstall() {
 
 cmd_status() {
   status_skills
-  status_hook
+  status_recognition_hooks
   status_style_hooks
   status_github_hook
   status_auto_memory
