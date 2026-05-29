@@ -8,6 +8,13 @@ SETTINGS_FILE="$HOME/.claude/settings.json"
 HOOK_CMD='echo '\''{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"Session router active. Invoke the nish-ai-prompt-recognition skill on the first substantive user prompt of this session to categorize and dispatch."}}'\'''
 HOOK_MARKER='nish-ai-prompt-recognition'
 
+# Writing-style enforcement hooks (caveman-style: full ruleset at session start,
+# one-line reminder every turn). $HOME expands at hook runtime, not now.
+STYLE_SS_CMD='bash "$HOME/.claude/skills/nish-ai-writing-style/hooks/style-session-start.sh"'
+STYLE_UP_CMD='bash "$HOME/.claude/skills/nish-ai-writing-style/hooks/style-prompt-submit.sh"'
+STYLE_SS_MARKER='style-session-start\.sh'
+STYLE_UP_MARKER='style-prompt-submit\.sh'
+
 require_jq() {
   command -v jq >/dev/null || { echo "jq required (brew install jq)" >&2; exit 1; }
 }
@@ -24,6 +31,78 @@ hook_installed() {
   jq -e --arg m "$HOOK_MARKER" \
     '(.hooks.SessionStart // []) | map(.hooks[]? | select(.command? | test($m))) | length > 0' \
     "$SETTINGS_FILE" >/dev/null
+}
+
+# Generic hook helpers, keyed by event + a command-substring marker (regex).
+hook_installed_for() { # $1=event $2=marker
+  [[ -f "$SETTINGS_FILE" ]] || return 1
+  jq -e --arg e "$1" --arg m "$2" \
+    '(.hooks[$e] // []) | map(.hooks[]? | select(.command? | test($m))) | length > 0' \
+    "$SETTINGS_FILE" >/dev/null
+}
+
+add_hook() { # $1=event $2=cmd $3=marker $4=label
+  require_jq
+  mkdir -p "$(dirname "$SETTINGS_FILE")"
+  [[ -f "$SETTINGS_FILE" ]] || echo '{}' > "$SETTINGS_FILE"
+  if hook_installed_for "$1" "$3"; then
+    echo "  skip   $4 (already installed)"
+    return
+  fi
+  local tmp; tmp="$(mktemp)"
+  jq --arg e "$1" --arg cmd "$2" '
+    .hooks //= {}
+    | .hooks[$e] //= []
+    | .hooks[$e] += [{"hooks": [{"type": "command", "command": $cmd}]}]
+  ' "$SETTINGS_FILE" > "$tmp"
+  mv "$tmp" "$SETTINGS_FILE"
+  echo "  add    $4 -> $SETTINGS_FILE"
+}
+
+remove_hook() { # $1=event $2=marker $3=label
+  [[ -f "$SETTINGS_FILE" ]] || { echo "  skip   $3 (no settings file)"; return; }
+  require_jq
+  if ! hook_installed_for "$1" "$2"; then
+    echo "  skip   $3 (not installed)"
+    return
+  fi
+  local tmp; tmp="$(mktemp)"
+  jq --arg e "$1" --arg m "$2" '
+    .hooks[$e] |= (
+      map(.hooks |= map(select(.command? | test($m) | not)))
+      | map(select((.hooks // []) | length > 0))
+    )
+    | if (.hooks[$e] // []) | length == 0 then del(.hooks[$e]) else . end
+    | if (.hooks // {}) == {} then del(.hooks) else . end
+  ' "$SETTINGS_FILE" > "$tmp"
+  mv "$tmp" "$SETTINGS_FILE"
+  echo "  remove $3"
+}
+
+install_style_hooks() {
+  add_hook SessionStart    "$STYLE_SS_CMD" "$STYLE_SS_MARKER" "writing-style SessionStart hook"
+  add_hook UserPromptSubmit "$STYLE_UP_CMD" "$STYLE_UP_MARKER" "writing-style UserPromptSubmit hook"
+}
+
+uninstall_style_hooks() {
+  remove_hook SessionStart     "$STYLE_SS_MARKER" "writing-style SessionStart hook"
+  remove_hook UserPromptSubmit "$STYLE_UP_MARKER" "writing-style UserPromptSubmit hook"
+}
+
+status_style_hooks() {
+  if [[ ! -f "$SETTINGS_FILE" ]] || ! command -v jq >/dev/null; then
+    printf "  %-10s writing-style hooks (cannot verify)\n" "unknown"
+    return
+  fi
+  local ev mk
+  for pair in "SessionStart:$STYLE_SS_MARKER" "UserPromptSubmit:$STYLE_UP_MARKER"; do
+    ev="${pair%%:*}"; mk="${pair##*:}"
+    if hook_installed_for "$ev" "$mk"; then
+      printf "  %-10s writing-style hook (%s)\n" "installed" "$ev"
+    else
+      printf "  %-10s writing-style hook (%s)\n" "missing" "$ev"
+    fi
+  done
 }
 
 install_skills() {
@@ -194,18 +273,21 @@ status_auto_memory() {
 cmd_install() {
   install_skills
   install_hook
+  install_style_hooks
   install_auto_memory
 }
 
 cmd_uninstall() {
   uninstall_skills
   uninstall_hook
+  uninstall_style_hooks
   uninstall_auto_memory
 }
 
 cmd_status() {
   status_skills
   status_hook
+  status_style_hooks
   status_auto_memory
 }
 
