@@ -85,7 +85,7 @@ flowchart LR
 | Symlink | Each skill dir linked into `~/.claude/skills/`, and each `commands/*.md` into `~/.claude/commands/`, so Claude discovers them |
 | Router hooks | Hard dispatch, not a soft pointer. SessionStart injects the full router ruleset and arms a once-per-session flag; UserPromptSubmit consumes the flag on the first prompt to force categorize + dispatch. Mirrors the writing-style two-hook pattern |
 | Style hooks | SessionStart injects full ruleset; UserPromptSubmit re-injects a reminder each turn |
-| Commit validator | PreToolUse(Bash) auto-rewrites a `git commit` carrying a body or `Co-Authored-By` trailer down to subject-only, preserving any `git add … &&` prefix; denies only what it cannot safely fix (bad prefix, capitalized subject, trailing period) |
+| Commit validator | PreToolUse(Bash) auto-rewrites a `git commit` carrying a body or `Co-Authored-By` trailer down to subject-only, preserving both a `git add … &&` prefix and a chained tail (`&& git log`, `&& git push`); denies only what it cannot safely fix (bad prefix, capitalized subject, trailing period) or cannot safely collapse (a second `git commit` in the tail, or a trailer that would survive in the tail) |
 | Auto-memory off | Disables built-in auto-memory; this system owns workflow state |
 
 All hooks are idempotent; `uninstall` and `status` cover every hook above.
