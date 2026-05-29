@@ -44,7 +44,7 @@ Two layers: install-time wiring (one-off) and per-session runtime (every session
 ```mermaid
 flowchart LR
     I["install.sh"] --> S["symlink SKILL.md dirs<br/>→ ~/.claude/skills/"]
-    I --> HR["add router hook<br/>SessionStart → settings.json"]
+    I --> HR["add router hooks<br/>SessionStart + UserPromptSubmit → settings.json"]
     I --> HS["add writing-style hooks<br/>SessionStart + UserPromptSubmit"]
     I --> HV["add commit-format validator<br/>PreToolUse(Bash) → settings.json"]
     I --> M["set autoMemoryEnabled=false<br/>→ settings.json"]
@@ -53,7 +53,7 @@ flowchart LR
 | Action | Effect |
 |--------|--------|
 | Symlink | Each skill dir linked into `~/.claude/skills/`, so Claude discovers them |
-| Router hook | SessionStart injects context telling Claude to run the router on first prompt |
+| Router hooks | Hard dispatch, not a soft pointer. SessionStart injects the full router ruleset and arms a once-per-session flag; UserPromptSubmit consumes the flag on the first prompt to force categorize + dispatch. Mirrors the writing-style two-hook pattern |
 | Style hooks | SessionStart injects full ruleset; UserPromptSubmit re-injects a reminder each turn |
 | Commit validator | PreToolUse(Bash) blocks a `git commit` that breaks nish-ai-github format |
 | Auto-memory off | Disables built-in auto-memory; this system owns workflow state |
@@ -62,11 +62,12 @@ All hooks are idempotent; `uninstall` and `status` cover every hook above.
 
 ### Runtime Dispatch
 
-Every session: hook arms the router, router fires once on the first substantive prompt, dispatches to one category skill that owns the rest of the session.
+Every session: SessionStart arms the router and loads its ruleset, the first prompt consumes the flag and forces dispatch, the chosen category skill owns the rest of the session.
 
 ```mermaid
 flowchart TD
-    HOOK["SessionStart hook<br/>(injects router context)"] --> P1["first substantive prompt"]
+    SS["SessionStart hook<br/>inject ruleset + arm flag"] --> P1["first substantive prompt"]
+    UP["UserPromptSubmit hook<br/>consume flag → force dispatch"] --> P1
     P1 --> R["nish-ai-prompt-recognition<br/>(router, fires once)"]
     R --> CAT{"categorize by<br/>commit prefix"}
 
