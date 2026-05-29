@@ -9,7 +9,7 @@ git clone https://github.com/ubunish/nish-ai.git ~/nish-ai
 cd ~/nish-ai && ./install.sh
 ```
 
-Symlinks skills into `~/.claude/skills/`, adds SessionStart hook to `~/.claude/settings.json`, and sets `autoMemoryEnabled: false` to disable auto-memory. Requires `jq` (`brew install jq`).
+Symlinks skills into `~/.claude/skills/`, slash commands into `~/.claude/commands/`, adds SessionStart hook to `~/.claude/settings.json`, and sets `autoMemoryEnabled: false` to disable auto-memory. Requires `jq` (`brew install jq`).
 
 ## Commands
 
@@ -33,6 +33,14 @@ Symlinks skills into `~/.claude/skills/`, adds SessionStart hook to `~/.claude/s
 | `nish-ai-documentation` | Docs writer |
 | `nish-ai-quick-task` | Vanilla Claude mode |
 
+## Slash Commands
+
+Symlinked into `~/.claude/commands/` by `install.sh`.
+
+| Command | Action |
+|---------|--------|
+| `/merge` | Merge the current branch into `main` without a PR, push, and delete the branch (local + remote) |
+
 ## Architecture
 
 Two layers: install-time wiring (one-off) and per-session runtime (every session).
@@ -44,6 +52,7 @@ Two layers: install-time wiring (one-off) and per-session runtime (every session
 ```mermaid
 flowchart LR
     I["install.sh"] --> S["symlink SKILL.md dirs<br/>→ ~/.claude/skills/"]
+    I --> C["symlink commands/*.md<br/>→ ~/.claude/commands/"]
     I --> HR["add router hooks<br/>SessionStart + UserPromptSubmit → settings.json"]
     I --> HS["add writing-style hooks<br/>SessionStart + UserPromptSubmit"]
     I --> HV["add commit-format validator<br/>PreToolUse(Bash) → settings.json"]
@@ -52,7 +61,7 @@ flowchart LR
 
 | Action | Effect |
 |--------|--------|
-| Symlink | Each skill dir linked into `~/.claude/skills/`, so Claude discovers them |
+| Symlink | Each skill dir linked into `~/.claude/skills/`, and each `commands/*.md` into `~/.claude/commands/`, so Claude discovers them |
 | Router hooks | Hard dispatch, not a soft pointer. SessionStart injects the full router ruleset and arms a once-per-session flag; UserPromptSubmit consumes the flag on the first prompt to force categorize + dispatch. Mirrors the writing-style two-hook pattern |
 | Style hooks | SessionStart injects full ruleset; UserPromptSubmit re-injects a reminder each turn |
 | Commit validator | PreToolUse(Bash) blocks a `git commit` that breaks nish-ai-github format |

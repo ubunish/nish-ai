@@ -92,3 +92,27 @@ Rules:
 - Summary explains motivation, not file-by-file diff
 - Test plan is a checklist, not prose
 - One PR per branch, one concern per PR
+
+## Direct Merge (`/merge`)
+
+The default flow stops at the local commit — Claude does not push or merge. The `/merge` command is the explicit, user-invoked exception: it merges the current branch straight into `main` without a pull request and cleans up.
+
+Use it for solo, low-risk work where a PR adds no value. For anything reviewed or shared, open a PR instead.
+
+```
+current branch
+  → checkout main + pull --ff-only
+  → merge --ff (fast-forward if possible, merge commit otherwise)
+  → push main
+  → delete branch (local + remote)
+```
+
+Guards, in order:
+
+- Refuses to run on `main` (nothing to merge).
+- Refuses on a dirty working tree (commit or stash first).
+- `git pull --ff-only` aborts on divergence rather than creating a surprise merge.
+- `git branch -d` (safe delete) refuses to drop an unmerged branch.
+- Remote steps are skipped when the repo has no `origin`.
+
+Installed as a symlinked slash command via `install.sh`. The command file lives in `commands/merge.md`.
