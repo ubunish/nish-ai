@@ -9,7 +9,7 @@ git clone https://github.com/ubunish/nish-ai.git ~/nish-ai
 cd ~/nish-ai && ./install.sh
 ```
 
-Symlinks skills into `~/.claude/skills/`, slash commands into `~/.claude/commands/`, adds the router, writing-style, and commit-validator hooks to `~/.claude/settings.json`, and sets `autoMemoryEnabled: false` to disable auto-memory. Requires `jq` (`brew install jq`).
+Symlinks skills into `~/.claude/skills/`, slash commands into `~/.claude/commands/`, adds the router, writing-style, and commit-validator hooks to `~/.claude/settings.json`, wires the writing-style statusline badge, and sets `autoMemoryEnabled: false` to disable auto-memory. Requires `jq` (`brew install jq`).
 
 ## Commands
 
@@ -77,6 +77,7 @@ flowchart LR
     I --> HR["add router hooks<br/>SessionStart + UserPromptSubmit → settings.json"]
     I --> HS["add writing-style hooks<br/>SessionStart + UserPromptSubmit"]
     I --> HV["add commit-format validator<br/>PreToolUse(Bash) → settings.json"]
+    I --> SL["wire statusline badge<br/>.statusLine → settings.json"]
     I --> M["set autoMemoryEnabled=false<br/>→ settings.json"]
 ```
 
@@ -86,6 +87,7 @@ flowchart LR
 | Router hooks | Hard dispatch, not a soft pointer. SessionStart injects the full router ruleset and arms a once-per-session flag; UserPromptSubmit consumes the flag on the first prompt to force categorize + dispatch. Mirrors the writing-style two-hook pattern |
 | Style hooks | SessionStart injects full ruleset; UserPromptSubmit re-injects a reminder each turn |
 | Commit validator | PreToolUse(Bash) auto-rewrites a `git commit` carrying a body or `Co-Authored-By` trailer down to subject-only, preserving both a `git add … &&` prefix and a chained tail (`&& git log`, `&& git push`); denies only what it cannot safely fix (bad prefix, capitalized subject, trailing period) or cannot safely collapse (a second `git commit` in the tail, or a trailer that would survive in the tail) |
+| Statusline badge | Sets `.statusLine` to render the `✎ style:on`/`off` + category badge, only when no status line is set yet; a custom `.statusLine` is left untouched |
 | Auto-memory off | Disables built-in auto-memory; this system owns workflow state |
 
 All hooks are idempotent; `uninstall` and `status` cover every hook above.
@@ -142,7 +144,7 @@ flowchart TD
 | `nish-ai-coding` | Skill discovery | Any source-code write or edit | "drop coding style" |
 | `nish-ai-github` | PreToolUse(Bash) validator + explicit invoke | Every `git commit`; commit / branch / PR boundary | validator auto-fixes or denies malformed commits, not user-toggleable |
 
-Off-flag lives at `~/.claude/.nish-style-off`. Present → both style hooks no-op. Toggled by phrase, persists across turns. The `statusLine` hook (`style-statusline.sh`) reads the same flag and renders a `✎ style:on` / `✎ style:off` badge so the active state is visible. It ships with the repo but is wired via the `statusLine` setting, not by `install.sh`.
+Off-flag lives at `~/.claude/.nish-style-off`. Present → both style hooks no-op. Toggled by phrase, persists across turns. The `statusLine` hook (`style-statusline.sh`) reads the same flag and renders a `✎ style:on` / `✎ style:off` badge so the active state is visible. `install.sh` wires it into the `statusLine` setting, but only when no status line is set yet — a custom `.statusLine` is left untouched.
 
 #### Writing-Style Modes
 

@@ -40,6 +40,13 @@ STYLE_PT_MATCHER='Bash|Edit|Write|Read|Grep|Glob|Skill'
 GH_VALIDATE_CMD='bash "$HOME/.claude/skills/nish-ai-github/hooks/validate-commit.sh"'
 GH_VALIDATE_MARKER='validate-commit\.sh'
 
+# Statusline badge: renders the writing-style on/off state and session category.
+# Unlike the hooks above, .statusLine is a single object (not a list), so it is
+# set only when absent or when it still points at our script — never clobbering a
+# user's own status line.
+STATUSLINE_CMD='bash "$HOME/.claude/skills/nish-ai-writing-style/hooks/style-statusline.sh"'
+STATUSLINE_MARKER='style-statusline\.sh'
+
 require_jq() {
   command -v jq >/dev/null || { echo "jq required (brew install jq)" >&2; exit 1; }
 }
@@ -162,6 +169,61 @@ status_github_hook() {
     printf "  %-10s commit-format validator (PreToolUse)\n" "installed"
   else
     printf "  %-10s commit-format validator (PreToolUse)\n" "missing"
+  fi
+}
+
+statusline_installed() {
+  [[ -f "$SETTINGS_FILE" ]] || return 1
+  jq -e --arg m "$STATUSLINE_MARKER" \
+    '(.statusLine.command? // "") | test($m)' "$SETTINGS_FILE" >/dev/null
+}
+
+install_statusline() {
+  require_jq
+  mkdir -p "$(dirname "$SETTINGS_FILE")"
+  [[ -f "$SETTINGS_FILE" ]] || echo '{}' > "$SETTINGS_FILE"
+  if statusline_installed; then
+    echo "  skip   statusline badge (already installed)"
+    return
+  fi
+  # .statusLine is a single object: only set it when absent. A status line that
+  # points elsewhere is the user's own — never clobber it.
+  if jq -e 'has("statusLine")' "$SETTINGS_FILE" >/dev/null; then
+    echo "  skip   statusline badge (custom .statusLine present, not ours)"
+    return
+  fi
+  local tmp; tmp="$(mktemp)"
+  jq --arg cmd "$STATUSLINE_CMD" \
+    '.statusLine = {"type": "command", "command": $cmd}' \
+    "$SETTINGS_FILE" > "$tmp"
+  mv "$tmp" "$SETTINGS_FILE"
+  echo "  add    statusline badge -> $SETTINGS_FILE"
+}
+
+uninstall_statusline() {
+  [[ -f "$SETTINGS_FILE" ]] || { echo "  skip   statusline badge (no settings file)"; return; }
+  require_jq
+  if ! statusline_installed; then
+    echo "  skip   statusline badge (not ours)"
+    return
+  fi
+  local tmp; tmp="$(mktemp)"
+  jq 'del(.statusLine)' "$SETTINGS_FILE" > "$tmp"
+  mv "$tmp" "$SETTINGS_FILE"
+  echo "  remove statusline badge"
+}
+
+status_statusline() {
+  if [[ ! -f "$SETTINGS_FILE" ]] || ! command -v jq >/dev/null; then
+    printf "  %-10s statusline badge (cannot verify)\n" "unknown"
+    return
+  fi
+  if statusline_installed; then
+    printf "  %-10s statusline badge (statusLine)\n" "installed"
+  elif jq -e 'has("statusLine")' "$SETTINGS_FILE" >/dev/null; then
+    printf "  %-10s statusline badge (custom .statusLine, not ours)\n" "conflict"
+  else
+    printf "  %-10s statusline badge (statusLine)\n" "missing"
   fi
 }
 
@@ -369,6 +431,7 @@ cmd_install() {
   install_recognition_hooks
   install_style_hooks
   install_github_hook
+  install_statusline
   install_auto_memory
 }
 
@@ -378,6 +441,7 @@ cmd_uninstall() {
   uninstall_recognition_hooks
   uninstall_style_hooks
   uninstall_github_hook
+  uninstall_statusline
   uninstall_auto_memory
 }
 
@@ -387,6 +451,7 @@ cmd_status() {
   status_recognition_hooks
   status_style_hooks
   status_github_hook
+  status_statusline
   status_auto_memory
 }
 
