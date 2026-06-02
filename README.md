@@ -18,6 +18,7 @@ Symlinks skills into `~/.claude/skills/`, slash commands into `~/.claude/command
 | `./install.sh` | Link skills + add hook (idempotent) |
 | `./install.sh uninstall` | Remove symlinks + hook |
 | `./install.sh status` | Show what's linked |
+| `./tests/run.sh` | Run the commit-hook test suite (no bats; needs `jq` + `perl`) |
 
 ## Skills
 
@@ -41,6 +42,14 @@ Symlinked into `~/.claude/commands/` by `install.sh`.
 |---------|--------|
 | `/merge` | Merge the current branch into `main` without a PR, push, and delete the branch (local + remote) |
 
+## Tests
+
+`tests/run.sh` covers the two fragile commit hooks with plain bash assertions — no bats, so it runs anywhere the hooks run. It exercises `validate-commit.sh` (pass / rewrite / deny decisions) and `rewrite-commit.pl` (body and trailer collapse, prefix and tail preservation, bail cases). Needs `jq` and `perl`.
+
+```
+./tests/run.sh
+```
+
 ## Repo Layout
 
 ```
@@ -48,6 +57,7 @@ nish-ai/
 ├── install.sh                  link skills + commands, wire hooks
 ├── commands/                   slash commands → ~/.claude/commands/
 │   └── merge.md
+├── tests/                       commit-hook test suite (run.sh)
 ├── nish-ai-writing-style/      always-on prose style (+ hooks/)
 ├── nish-ai-github/             commit/branch/PR conventions (+ hooks/)
 ├── nish-ai-prompt-recognition/ session router (+ hooks/)
