@@ -47,6 +47,12 @@ GH_VALIDATE_MARKER='validate-commit\.sh'
 STATUSLINE_CMD='bash "$HOME/.claude/skills/nish-ai-writing-style/hooks/style-statusline.sh"'
 STATUSLINE_MARKER='style-statusline\.sh'
 
+# Code-intelligence plugin: the clangd C/C++ LSP, installed via the Claude Code
+# plugin CLI. The CLI owns the marketplace clone, install record, and enable
+# toggle, so we drive it rather than hand-writing plugin JSON.
+PLUGIN_NAME='clangd-lsp@claude-plugins-official'
+PLUGIN_MARKETPLACE='anthropics/claude-plugins-official'
+
 require_jq() {
   command -v jq >/dev/null || { echo "jq required (brew install jq)" >&2; exit 1; }
 }
@@ -224,6 +230,56 @@ status_statusline() {
     printf "  %-10s statusline badge (custom .statusLine, not ours)\n" "conflict"
   else
     printf "  %-10s statusline badge (statusLine)\n" "missing"
+  fi
+}
+
+plugin_installed() {
+  command -v claude >/dev/null || return 1
+  claude plugin list 2>/dev/null | grep -q "$PLUGIN_NAME"
+}
+
+install_plugin() {
+  if ! command -v claude >/dev/null; then
+    echo "  skip   $PLUGIN_NAME (claude CLI not found)"
+    return
+  fi
+  if plugin_installed; then
+    echo "  skip   $PLUGIN_NAME (already installed)"
+    return
+  fi
+  claude plugin marketplace add "$PLUGIN_MARKETPLACE" >/dev/null 2>&1 || true  # idempotent
+  if claude plugin install "$PLUGIN_NAME" >/dev/null 2>&1; then
+    echo "  add    $PLUGIN_NAME"
+  else
+    echo "  fail   $PLUGIN_NAME (claude plugin install failed)"
+  fi
+}
+
+uninstall_plugin() {
+  if ! command -v claude >/dev/null; then
+    echo "  skip   $PLUGIN_NAME (claude CLI not found)"
+    return
+  fi
+  if ! plugin_installed; then
+    echo "  skip   $PLUGIN_NAME (not installed)"
+    return
+  fi
+  if claude plugin uninstall "$PLUGIN_NAME" >/dev/null 2>&1; then
+    echo "  remove $PLUGIN_NAME"
+  else
+    echo "  fail   $PLUGIN_NAME (claude plugin uninstall failed)"
+  fi
+}
+
+status_plugin() {
+  if ! command -v claude >/dev/null; then
+    printf "  %-10s %s (claude CLI not found)\n" "unknown" "$PLUGIN_NAME"
+    return
+  fi
+  if plugin_installed; then
+    printf "  %-10s %s\n" "installed" "$PLUGIN_NAME"
+  else
+    printf "  %-10s %s\n" "missing" "$PLUGIN_NAME"
   fi
 }
 
@@ -432,6 +488,7 @@ cmd_install() {
   install_style_hooks
   install_github_hook
   install_statusline
+  install_plugin
   install_auto_memory
 }
 
@@ -442,6 +499,7 @@ cmd_uninstall() {
   uninstall_style_hooks
   uninstall_github_hook
   uninstall_statusline
+  uninstall_plugin
   uninstall_auto_memory
 }
 
@@ -452,6 +510,7 @@ cmd_status() {
   status_style_hooks
   status_github_hook
   status_statusline
+  status_plugin
   status_auto_memory
 }
 
