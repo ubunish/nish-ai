@@ -20,6 +20,13 @@ INPUT="$(cat)"
 SID="$(printf '%s' "$INPUT" | jq -r '.session_id // "default"' 2>/dev/null || echo default)"
 SOURCE="$(printf '%s' "$INPUT" | jq -r '.source // "startup"' 2>/dev/null || echo startup)"
 
+# Reap stale per-session flags before arming a new one. These accumulate in
+# ~/.claude/ as sessions come and go with no other cleanup. Match only the two
+# known prefixes, never unrelated files; best-effort, silent on failure.
+find "$FLAG_DIR" -maxdepth 1 -type f \
+  \( -name '.nish-recognition-pending-*' -o -name '.nish-ai-category-*' \) \
+  -mtime +7 -delete 2>/dev/null || true
+
 # Arm the pending flag only for a new logical session.
 case "$SOURCE" in
   startup|clear) : > "$FLAG_DIR/.nish-recognition-pending-$SID" ;;
