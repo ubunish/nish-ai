@@ -9,7 +9,7 @@ git clone https://github.com/ubunish/nish-ai.git ~/nish-ai
 cd ~/nish-ai && ./install.sh
 ```
 
-Symlinks skills into `~/.claude/skills/`, slash commands into `~/.claude/commands/`, adds the router, writing-style, and commit-validator hooks to `~/.claude/settings.json`, wires the writing-style statusline badge, installs the `clangd-lsp` code-intelligence plugin, and sets `autoMemoryEnabled: false` to disable auto-memory. Requires `jq` (`brew install jq`); the plugin step also needs the `claude` CLI.
+Symlinks skills into `~/.claude/skills/`, slash commands into `~/.claude/commands/`, adds the router, writing-style, commit-validator, and uv-enforcement hooks to `~/.claude/settings.json`, wires the writing-style statusline badge, installs the `clangd-lsp` code-intelligence plugin, and sets `autoMemoryEnabled: false` to disable auto-memory. Requires `jq` (`brew install jq`); the plugin step also needs the `claude` CLI.
 
 ## Commands
 
@@ -19,6 +19,7 @@ Symlinks skills into `~/.claude/skills/`, slash commands into `~/.claude/command
 | `./install.sh uninstall` | Remove symlinks + hook |
 | `./install.sh status` | Show what's linked |
 | `./tests/run.sh` | Run the commit-hook test suite (no bats; needs `jq` + `perl`) |
+| `./tests/uv.sh` | Run the uv-hook test suite (no bats; needs `jq`) |
 
 ## Skills
 
@@ -34,6 +35,7 @@ Symlinks skills into `~/.claude/skills/`, slash commands into `~/.claude/command
 | `nish-ai-documentation` | Docs writer |
 | `nish-ai-quick-task` | Vanilla Claude mode |
 | `nish-ai-ros2` | Auto-active ROS2 best practices (rides the always-on tier) |
+| `nish-ai-uv` | Auto-active "prefer uv" convention + PreToolUse enforcement hook |
 
 ## Slash Commands
 
@@ -47,8 +49,11 @@ Symlinked into `~/.claude/commands/` by `install.sh`.
 
 `tests/run.sh` covers the two fragile commit hooks with plain bash assertions — no bats, so it runs anywhere the hooks run. It exercises `validate-commit.sh` (pass / rewrite / deny decisions) and `rewrite-commit.pl` (body and trailer collapse, prefix and tail preservation, bail cases). Needs `jq` and `perl`.
 
+`tests/uv.sh` covers the uv-enforcement hook the same way: deny + rewrite for python/pip/poetry/pipenv/virtualenv, and pass-through for uv, conda, an active `$VIRTUAL_ENV`, and the `drop uv` bypass marker. Needs `jq`.
+
 ```
 ./tests/run.sh
+./tests/uv.sh
 ```
 
 ## Repo Layout
@@ -58,8 +63,9 @@ nish-ai/
 ├── install.sh                  link skills + commands, wire hooks
 ├── commands/                   slash commands → ~/.claude/commands/
 │   └── merge.md
-├── tests/                       commit-hook test suite (run.sh)
+├── tests/                       hook test suites (run.sh, uv.sh)
 ├── nish-ai-writing-style/      always-on prose style (+ hooks/)
+├── nish-ai-uv/                 always-on "prefer uv" convention (+ hooks/)
 ├── nish-ai-github/             commit/branch/PR conventions (+ hooks/)
 ├── nish-ai-prompt-recognition/ session router (+ hooks/)
 └── nish-ai-categories/         skills dispatched by the router
@@ -89,6 +95,7 @@ flowchart LR
     I --> HR["add router hooks<br/>SessionStart + UserPromptSubmit → settings.json"]
     I --> HS["add writing-style hooks<br/>SessionStart + UserPromptSubmit"]
     I --> HV["add commit-format validator<br/>PreToolUse(Bash) → settings.json"]
+    I --> HU["add uv-enforcement hook<br/>PreToolUse(Bash) → settings.json"]
     I --> SL["wire statusline badge<br/>.statusLine → settings.json"]
     I --> PL["install clangd-lsp plugin<br/>claude plugin install"]
     I --> M["set autoMemoryEnabled=false<br/>→ settings.json"]
@@ -100,6 +107,7 @@ flowchart LR
 | Router hooks | Hard dispatch, not a soft pointer. SessionStart injects the full router ruleset and arms a once-per-session flag; UserPromptSubmit consumes the flag on the first prompt to force categorize + dispatch. Mirrors the writing-style two-hook pattern |
 | Style hooks | SessionStart injects full ruleset; UserPromptSubmit re-injects a reminder each turn |
 | Commit validator | PreToolUse(Bash) auto-rewrites a `git commit` carrying a body or `Co-Authored-By` trailer down to subject-only, preserving both a `git add … &&` prefix and a chained tail (`&& git log`, `&& git push`); denies only what it cannot safely fix (bad prefix, capitalized subject, trailing period) or cannot safely collapse (a second `git commit` in the tail, or a trailer that would survive in the tail) |
+| uv enforcement | PreToolUse(Bash) blocks a bare `python`/`pip`/`poetry`/`pipenv`/`virtualenv` call and denies it with the uv rewrite (`python app.py` → `uv run app.py`); passes through uv, conda, an active `$VIRTUAL_ENV`, and the `drop uv` bypass marker |
 | Statusline badge | Sets `.statusLine` to render the `✎ style:on`/`off` + category badge, only when no status line is set yet; a custom `.statusLine` is left untouched |
 | Plugin install | Installs the `clangd-lsp` code-intelligence plugin via the `claude plugin` CLI (marketplace `anthropics/claude-plugins-official`), idempotent; skipped if the `claude` CLI is absent |
 | Auto-memory off | Disables built-in auto-memory; this system owns workflow state |
@@ -130,7 +138,7 @@ flowchart TD
 
 ### Always-On Layer
 
-Four skills run across every category, not dispatched by the router. They differ by mechanism.
+Five skills run across every category, not dispatched by the router. They differ by mechanism.
 
 ```mermaid
 flowchart TD
@@ -139,19 +147,23 @@ flowchart TD
         UP["UserPromptSubmit hook<br/>per-turn reminder + off-flag toggle"]
         SL["statusLine hook<br/>render style:on/off badge"]
         PV["PreToolUse(Bash) hook<br/>validate commit message"]
+        PU["PreToolUse(Bash) hook<br/>block bare python/pip → uv"]
         SS --> WS["nish-ai-writing-style"]
         UP --> WS
         SL --> WS
         PV --> GH["nish-ai-github"]
+        PU --> UV["nish-ai-uv"]
     end
     subgraph disc["skill-discovery"]
         CD["nish-ai-coding<br/>auto-active on code write"]
         RO["nish-ai-ros2<br/>auto-active on ROS2 code"]
+        UVD["nish-ai-uv<br/>auto-active on Python signals"]
     end
     WS -.applies to.-> ALL["every session + category"]
     CD -.applies to.-> ALL
     RO -.applies to.-> ALL
     GH -.applies to.-> ALL
+    UV -.applies to.-> ALL
 ```
 
 | Skill | Mechanism | Triggers on | Off switch |
@@ -160,8 +172,11 @@ flowchart TD
 | `nish-ai-coding` | Skill discovery | Any source-code write or edit | "drop coding style" |
 | `nish-ai-ros2` | Skill discovery | ROS2 signals: `package.xml` (ament), `rclpy`/`rclcpp`, `.msg`/`.srv`/`.action`, `launch/`/`config/` | "drop ros2" |
 | `nish-ai-github` | PreToolUse(Bash) validator + explicit invoke | Every `git commit`; commit / branch / PR boundary | validator auto-fixes or denies malformed commits, not user-toggleable |
+| `nish-ai-uv` | Skill discovery + PreToolUse(Bash) hook | Python signals: `*.py`, `pip`/`poetry`/`pipenv`/`virtualenv`, `requirements.txt`, `pyproject.toml` | "drop uv" → writes `~/.claude/.uv-off` marker; hook stands down, skill stops applying |
 
 Beyond auto-activation, `nish-ai-ros2` folds into three category skills at their boundaries: `nish-ai-coding` enforces its thirty practices at the commit gate, `nish-ai-project-planning` folds its architectural decisions (node split, custom-interface packages, services-vs-actions) into the plan, and `nish-ai-documentation` applies its per-package README structure. Off on "drop ros2".
+
+`nish-ai-uv` mirrors the writing-style architecture: a passive auto-active skill carries the WHY and the command mapping, an active PreToolUse(Bash) hook guarantees it by blocking bare `python`/`pip`/`poetry`/`pipenv`/`virtualenv` and returning the uv rewrite. nish-ignition owns the uv binary and builds the `~/.venvs/*` environments; this skill owns Claude's behavior. "drop uv" writes `~/.claude/.uv-off`, which the hook checks first — present → no-op. Conda is never redirected.
 
 Off-flag lives at `~/.claude/.nish-style-off`. Present → both style hooks no-op. Toggled by phrase, persists across turns. The `statusLine` hook (`style-statusline.sh`) reads the same flag and renders a `✎ style:on` / `✎ style:off` badge so the active state is visible. `install.sh` wires it into the `statusLine` setting, but only when no status line is set yet — a custom `.statusLine` is left untouched.
 
