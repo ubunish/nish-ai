@@ -40,6 +40,12 @@ STYLE_PT_MATCHER='Bash|Edit|Write|Read|Grep|Glob|Skill'
 GH_VALIDATE_CMD='bash "$HOME/.claude/skills/nish-ai-github/hooks/validate-commit.sh"'
 GH_VALIDATE_MARKER='validate-commit\.sh'
 
+# uv enforcement hook: PreToolUse on Bash, blocks bare python/pip/poetry/pipenv/
+# virtualenv calls and returns the uv rewrite. The skill itself is symlinked by
+# install_skills (it lives at the repo root); only the hook needs registering.
+UV_HOOK_CMD='bash "$HOME/.claude/skills/nish-ai-uv/hooks/uv-pretooluse.sh"'
+UV_HOOK_MARKER='uv-pretooluse\.sh'
+
 # Statusline badge: renders the writing-style on/off state and session category.
 # Unlike the hooks above, .statusLine is a single object (not a list), so it is
 # set only when absent or when it still points at our script — never clobbering a
@@ -175,6 +181,26 @@ status_github_hook() {
     printf "  %-10s commit-format validator (PreToolUse)\n" "installed"
   else
     printf "  %-10s commit-format validator (PreToolUse)\n" "missing"
+  fi
+}
+
+install_uv_hook() {
+  add_hook PreToolUse "$UV_HOOK_CMD" "$UV_HOOK_MARKER" "uv enforcement hook" "Bash"
+}
+
+uninstall_uv_hook() {
+  remove_hook PreToolUse "$UV_HOOK_MARKER" "uv enforcement hook"
+}
+
+status_uv_hook() {
+  if [[ ! -f "$SETTINGS_FILE" ]] || ! command -v jq >/dev/null; then
+    printf "  %-10s uv enforcement hook (cannot verify)\n" "unknown"
+    return
+  fi
+  if hook_installed_for PreToolUse "$UV_HOOK_MARKER"; then
+    printf "  %-10s uv enforcement hook (PreToolUse)\n" "installed"
+  else
+    printf "  %-10s uv enforcement hook (PreToolUse)\n" "missing"
   fi
 }
 
@@ -487,6 +513,7 @@ cmd_install() {
   install_recognition_hooks
   install_style_hooks
   install_github_hook
+  install_uv_hook
   install_statusline
   install_plugin
   install_auto_memory
@@ -498,6 +525,7 @@ cmd_uninstall() {
   uninstall_recognition_hooks
   uninstall_style_hooks
   uninstall_github_hook
+  uninstall_uv_hook
   uninstall_statusline
   uninstall_plugin
   uninstall_auto_memory
@@ -509,6 +537,7 @@ cmd_status() {
   status_recognition_hooks
   status_style_hooks
   status_github_hook
+  status_uv_hook
   status_statusline
   status_plugin
   status_auto_memory
