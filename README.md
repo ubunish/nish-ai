@@ -33,6 +33,7 @@ Symlinks skills into `~/.claude/skills/`, slash commands into `~/.claude/command
 | `nish-ai-goal-oriented-coding` | Plan execution workflow |
 | `nish-ai-documentation` | Docs writer |
 | `nish-ai-quick-task` | Vanilla Claude mode |
+| `nish-ai-ros2` | Auto-active ROS2 best practices (rides the always-on tier) |
 
 ## Slash Commands
 
@@ -67,7 +68,8 @@ nish-ai/
     ├── nish-ai-user-question/
     ├── nish-ai-goal-oriented-coding/
     ├── nish-ai-documentation/
-    └── nish-ai-quick-task/
+    ├── nish-ai-quick-task/
+    └── nish-ai-ros2/
 ```
 
 `install.sh` finds every `SKILL.md` by `find`, so the `nish-ai-categories/` grouping is for repo organization only — skills link into `~/.claude/skills/` by basename, flat.
@@ -128,7 +130,7 @@ flowchart TD
 
 ### Always-On Layer
 
-Three skills run across every category, not dispatched by the router. They differ by mechanism.
+Four skills run across every category, not dispatched by the router. They differ by mechanism.
 
 ```mermaid
 flowchart TD
@@ -144,9 +146,11 @@ flowchart TD
     end
     subgraph disc["skill-discovery"]
         CD["nish-ai-coding<br/>auto-active on code write"]
+        RO["nish-ai-ros2<br/>auto-active on ROS2 code"]
     end
     WS -.applies to.-> ALL["every session + category"]
     CD -.applies to.-> ALL
+    RO -.applies to.-> ALL
     GH -.applies to.-> ALL
 ```
 
@@ -154,7 +158,10 @@ flowchart TD
 |-------|-----------|-------------|------------|
 | `nish-ai-writing-style` | Hooks (SessionStart + UserPromptSubmit + statusLine badge) | Every session + every turn | "drop style" / "verbose mode" → off-flag; "resume style" → on |
 | `nish-ai-coding` | Skill discovery | Any source-code write or edit | "drop coding style" |
+| `nish-ai-ros2` | Skill discovery | ROS2 signals: `package.xml` (ament), `rclpy`/`rclcpp`, `.msg`/`.srv`/`.action`, `launch/`/`config/` | "drop ros2" |
 | `nish-ai-github` | PreToolUse(Bash) validator + explicit invoke | Every `git commit`; commit / branch / PR boundary | validator auto-fixes or denies malformed commits, not user-toggleable |
+
+Beyond auto-activation, `nish-ai-ros2` folds into three category skills at their boundaries: `nish-ai-coding` enforces its thirty practices at the commit gate, `nish-ai-project-planning` folds its architectural decisions (node split, custom-interface packages, services-vs-actions) into the plan, and `nish-ai-documentation` applies its per-package README structure. Off on "drop ros2".
 
 Off-flag lives at `~/.claude/.nish-style-off`. Present → both style hooks no-op. Toggled by phrase, persists across turns. The `statusLine` hook (`style-statusline.sh`) reads the same flag and renders a `✎ style:on` / `✎ style:off` badge so the active state is visible. `install.sh` wires it into the `statusLine` setting, but only when no status line is set yet — a custom `.statusLine` is left untouched.
 
