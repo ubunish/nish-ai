@@ -108,6 +108,10 @@ Comment when WHY is non-obvious:
 total_cents = math.floor(amount * 100)
 ```
 
+## ROS2
+
+When the code under edit is ROS2 (a `package.xml` with ament, `rclpy`/`rclcpp`, `.msg`/`.srv`/`.action`, or a `launch/`/`config/` folder), load `nish-ai-ros2` and enforce its thirty practices at the commit boundary alongside these seven principles.
+
 ## Lifetime
 
 Auto-active when writing or editing source. Invoked explicitly by `nish-ai-goal-oriented-coding` at commit boundaries to verify principles. Off only on "drop coding style".
