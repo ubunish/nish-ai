@@ -40,11 +40,26 @@ STYLE_PT_MATCHER='Bash|Edit|Write|Read|Grep|Glob|Skill'
 GH_VALIDATE_CMD='bash "$HOME/.claude/skills/nish-ai-github/hooks/validate-commit.sh"'
 GH_VALIDATE_MARKER='validate-commit\.sh'
 
+# github SessionStart anchor: primes the subject-only commit convention at
+# session start. The base harness prompt pushes a Co-Authored-By trailer and a
+# body; without this anchor Claude follows that pull and the PreToolUse
+# validator strips it after the fact. This makes subject-only the default reach.
+GH_SS_CMD='bash "$HOME/.claude/skills/nish-ai-github/hooks/github-session-start.sh"'
+GH_SS_MARKER='github-session-start\.sh'
+
 # uv enforcement hook: PreToolUse on Bash, blocks bare python/pip/poetry/pipenv/
 # virtualenv calls and returns the uv rewrite. The skill itself is symlinked by
 # install_skills (it lives at the repo root); only the hook needs registering.
 UV_HOOK_CMD='bash "$HOME/.claude/skills/nish-ai-uv/hooks/uv-pretooluse.sh"'
 UV_HOOK_MARKER='uv-pretooluse\.sh'
+
+# uv SessionStart anchor: primes the python→uv mapping at session start, before
+# Claude drafts a bare command. Without it the convention loads only reactively
+# (on the PreToolUse block), so Claude reaches for python first and gets
+# corrected. This makes uv the default reach from message one; the PreToolUse
+# hook above stays as the backstop.
+UV_SS_CMD='bash "$HOME/.claude/skills/nish-ai-uv/hooks/uv-session-start.sh"'
+UV_SS_MARKER='uv-session-start\.sh'
 
 # Statusline badge: renders the writing-style on/off state and session category.
 # Unlike the hooks above, .statusLine is a single object (not a list), so it is
@@ -165,11 +180,13 @@ status_style_hooks() {
 }
 
 install_github_hook() {
-  add_hook PreToolUse "$GH_VALIDATE_CMD" "$GH_VALIDATE_MARKER" "commit-format validator" "Bash"
+  add_hook PreToolUse   "$GH_VALIDATE_CMD" "$GH_VALIDATE_MARKER" "commit-format validator" "Bash"
+  add_hook SessionStart "$GH_SS_CMD"       "$GH_SS_MARKER"       "github SessionStart anchor"
 }
 
 uninstall_github_hook() {
-  remove_hook PreToolUse "$GH_VALIDATE_MARKER" "commit-format validator"
+  remove_hook PreToolUse   "$GH_VALIDATE_MARKER" "commit-format validator"
+  remove_hook SessionStart "$GH_SS_MARKER"       "github SessionStart anchor"
 }
 
 status_github_hook() {
@@ -182,14 +199,21 @@ status_github_hook() {
   else
     printf "  %-10s commit-format validator (PreToolUse)\n" "missing"
   fi
+  if hook_installed_for SessionStart "$GH_SS_MARKER"; then
+    printf "  %-10s github SessionStart anchor (SessionStart)\n" "installed"
+  else
+    printf "  %-10s github SessionStart anchor (SessionStart)\n" "missing"
+  fi
 }
 
 install_uv_hook() {
-  add_hook PreToolUse "$UV_HOOK_CMD" "$UV_HOOK_MARKER" "uv enforcement hook" "Bash"
+  add_hook PreToolUse  "$UV_HOOK_CMD" "$UV_HOOK_MARKER" "uv enforcement hook" "Bash"
+  add_hook SessionStart "$UV_SS_CMD"  "$UV_SS_MARKER"   "uv SessionStart anchor"
 }
 
 uninstall_uv_hook() {
-  remove_hook PreToolUse "$UV_HOOK_MARKER" "uv enforcement hook"
+  remove_hook PreToolUse   "$UV_HOOK_MARKER" "uv enforcement hook"
+  remove_hook SessionStart "$UV_SS_MARKER"   "uv SessionStart anchor"
 }
 
 status_uv_hook() {
@@ -201,6 +225,11 @@ status_uv_hook() {
     printf "  %-10s uv enforcement hook (PreToolUse)\n" "installed"
   else
     printf "  %-10s uv enforcement hook (PreToolUse)\n" "missing"
+  fi
+  if hook_installed_for SessionStart "$UV_SS_MARKER"; then
+    printf "  %-10s uv SessionStart anchor (SessionStart)\n" "installed"
+  else
+    printf "  %-10s uv SessionStart anchor (SessionStart)\n" "missing"
   fi
 }
 

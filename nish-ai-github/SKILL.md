@@ -13,7 +13,7 @@ description: >
 
 No body. No trailers. No `Co-Authored-By` unless the user explicitly asks. Subject line only.
 
-A `PreToolUse` hook enforces this on every `git commit`. A body or `Co-Authored-By` trailer is stripped automatically — the commit is rewritten to subject-only and runs as-is, keeping any `git add … &&` prefix so staging is not lost. Only violations the hook cannot safely fix (bad prefix, capitalized subject, trailing period) are denied.
+A `SessionStart` hook primes this convention from message one, so subject-only is the default reach rather than a correction — countering the base harness prompt, which asks for a `Co-Authored-By: Claude` trailer and a body. A `PreToolUse` hook backstops it on every `git commit`: a body or `Co-Authored-By` trailer that slips through is stripped automatically — the commit is rewritten to subject-only and runs as-is, keeping any `git add … &&` prefix so staging is not lost. Only violations the hook cannot safely fix (bad prefix, capitalized subject, trailing period) are denied.
 
 | Prefix | Use |
 |--------|-----|

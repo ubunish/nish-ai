@@ -35,7 +35,7 @@ Symlinks skills into `~/.claude/skills/`, slash commands into `~/.claude/command
 | `nish-ai-documentation` | Docs writer |
 | `nish-ai-quick-task` | Vanilla Claude mode |
 | `nish-ai-ros2` | Auto-active ROS2 best practices (rides the always-on tier) |
-| `nish-ai-uv` | Auto-active "prefer uv" convention + PreToolUse enforcement hook |
+| `nish-ai-uv` | Auto-active "prefer uv" convention + SessionStart anchor + PreToolUse enforcement hook |
 
 ## Slash Commands
 
@@ -94,8 +94,8 @@ flowchart LR
     I --> C["symlink commands/*.md<br/>→ ~/.claude/commands/"]
     I --> HR["add router hooks<br/>SessionStart + UserPromptSubmit → settings.json"]
     I --> HS["add writing-style hooks<br/>SessionStart + UserPromptSubmit"]
-    I --> HV["add commit-format validator<br/>PreToolUse(Bash) → settings.json"]
-    I --> HU["add uv-enforcement hook<br/>PreToolUse(Bash) → settings.json"]
+    I --> HV["add commit-format validator + anchor<br/>SessionStart + PreToolUse(Bash) → settings.json"]
+    I --> HU["add uv anchor + enforcement hook<br/>SessionStart + PreToolUse(Bash) → settings.json"]
     I --> SL["wire statusline badge<br/>.statusLine → settings.json"]
     I --> PL["install clangd-lsp plugin<br/>claude plugin install"]
     I --> M["set autoMemoryEnabled=false<br/>→ settings.json"]
@@ -171,12 +171,12 @@ flowchart TD
 | `nish-ai-writing-style` | Hooks (SessionStart + UserPromptSubmit + statusLine badge) | Every session + every turn | "drop style" / "verbose mode" → off-flag; "resume style" → on |
 | `nish-ai-coding` | Skill discovery | Any source-code write or edit | "drop coding style" |
 | `nish-ai-ros2` | Skill discovery | ROS2 signals: `package.xml` (ament), `rclpy`/`rclcpp`, `.msg`/`.srv`/`.action`, `launch/`/`config/` | "drop ros2" |
-| `nish-ai-github` | PreToolUse(Bash) validator + explicit invoke | Every `git commit`; commit / branch / PR boundary | validator auto-fixes or denies malformed commits, not user-toggleable |
-| `nish-ai-uv` | Skill discovery + PreToolUse(Bash) hook | Python signals: `*.py`, `pip`/`poetry`/`pipenv`/`virtualenv`, `requirements.txt`, `pyproject.toml` | "drop uv" → writes `~/.claude/.uv-off` marker; hook stands down, skill stops applying |
+| `nish-ai-github` | SessionStart anchor + PreToolUse(Bash) validator + explicit invoke | Every session; every `git commit`; commit / branch / PR boundary | validator auto-fixes or denies malformed commits, not user-toggleable |
+| `nish-ai-uv` | Skill discovery + SessionStart anchor + PreToolUse(Bash) hook | Every session; Python signals: `*.py`, `pip`/`poetry`/`pipenv`/`virtualenv`, `requirements.txt`, `pyproject.toml` | "drop uv" → writes `~/.claude/.uv-off` marker; anchor and hook stand down, skill stops applying |
 
 Beyond auto-activation, `nish-ai-ros2` folds into three category skills at their boundaries: `nish-ai-coding` enforces its thirty practices at the commit gate, `nish-ai-project-planning` folds its architectural decisions (node split, custom-interface packages, services-vs-actions) into the plan, and `nish-ai-documentation` applies its per-package README structure. Off on "drop ros2".
 
-`nish-ai-uv` mirrors the writing-style architecture: a passive auto-active skill carries the WHY and the command mapping, an active PreToolUse(Bash) hook guarantees it by blocking bare `python`/`pip`/`poetry`/`pipenv`/`virtualenv` and returning the uv rewrite. nish-setup owns the uv binary and builds the `~/.venvs/*` environments; this skill owns Claude's behavior. "drop uv" writes `~/.claude/.uv-off`, which the hook checks first — present → no-op. Conda is never redirected.
+`nish-ai-uv` mirrors the writing-style architecture: a passive auto-active skill carries the WHY and the command mapping, a SessionStart anchor primes the mapping from message one so uv is the default reach, and an active PreToolUse(Bash) hook backstops it by blocking any bare `python`/`pip`/`poetry`/`pipenv`/`virtualenv` that slips through and returning the uv rewrite. nish-setup owns the uv binary and builds the `~/.venvs/*` environments; this skill owns Claude's behavior. "drop uv" writes `~/.claude/.uv-off`, which the hook checks first — present → no-op. Conda is never redirected.
 
 Off-flag lives at `~/.claude/.nish-style-off`. Present → both style hooks no-op. Toggled by phrase, persists across turns. The `statusLine` hook (`style-statusline.sh`) reads the same flag and renders a `✎ style:on` / `✎ style:off` badge so the active state is visible. `install.sh` wires it into the `statusLine` setting, but only when no status line is set yet — a custom `.statusLine` is left untouched.
 

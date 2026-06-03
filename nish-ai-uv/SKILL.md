@@ -8,9 +8,10 @@ description: >
   redirects python/pip/poetry/pipenv/virtualenv to their uv equivalents. The
   mapping applies to commands Claude runs AND to commands Claude suggests in
   chat — including echoes of a README that still says pip/python. Rides the
-  auto-active tier alongside nish-ai-writing-style and nish-ai-coding, and is
-  backed by a PreToolUse hook that blocks bare calls and returns the uv
-  rewrite. Off only on "drop uv".
+  auto-active tier alongside nish-ai-writing-style and nish-ai-coding. A
+  SessionStart hook primes the mapping from message one, and a PreToolUse hook
+  backstops it by blocking bare calls and returning the uv rewrite. Off only on
+  "drop uv".
 ---
 
 ## Detection
@@ -51,8 +52,10 @@ the convention overrides the source text. Flag the doc drift for a separate
 nish-setup already installs uv and builds the `~/.venvs/*` environments with
 it. uv is faster, resolves deterministically, and replaces the whole
 python/pip/poetry/pipenv/virtualenv stack with one tool. This skill carries the
-convention so Claude reaches for uv on its own; the companion PreToolUse hook
-enforces it by blocking bare calls and returning the rewrite.
+convention so Claude reaches for uv on its own. A SessionStart hook primes the
+mapping from message one, so uv is the default reach rather than a correction;
+the companion PreToolUse hook backstops it by blocking any bare call that slips
+through and returning the rewrite.
 
 ## Command Mapping
 
