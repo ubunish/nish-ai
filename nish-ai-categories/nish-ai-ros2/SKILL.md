@@ -1,7 +1,8 @@
 ---
 name: nish-ai-ros2
 description: >
-  Nish's ROS2 best practices, tailored from Henki's reference set. Auto-active
+  Nish's ROS2 best practices, tailored from Henki's reference set. Targets ROS2
+  Humble Hawksbill (LTS). Auto-active
   whenever Claude writes or edits ROS2 code in any session — detected by ROS2
   signals: a `package.xml` with `ament_cmake`/`ament_python`, `rclpy`/`rclcpp`
   imports, `.msg`/`.srv`/`.action` interface files, a `launch/` or `config/`
@@ -10,6 +11,12 @@ description: >
   executors, dependencies, docs, and testing. Rides the auto-active tier
   alongside nish-ai-writing-style and nish-ai-coding. Off only on "drop ros2".
 ---
+
+## Target Distribution
+
+These practices target **ROS2 Humble Hawksbill** — the current LTS distribution.
+Tooling, APIs, and conventions assume Humble unless a rule says otherwise. On a
+different distro, verify API and tooling compatibility before applying.
 
 ## Detection
 
