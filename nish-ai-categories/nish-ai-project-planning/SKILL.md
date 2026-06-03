@@ -82,6 +82,10 @@ Rules:
 - Each step declares its commit message in the format from `nish-ai-github`
 - Steps in the body match the diagram exactly
 
+## ROS2 Plans
+
+When the plan targets ROS2, load `nish-ai-ros2` and fold its architectural decisions into the structure: node split (single responsibility per node, logic separated from comms), custom interfaces in their own `_msgs` packages, and the services-vs-actions choice (services <1s, actions for slow/cancellable/multi-error). These shape the steps and diagram before implementation starts.
+
 ## Diagram Rules (Markdown)
 
 Mermaid is required and always embedded in the .md. Keep it plain — no `classDef`, no color styling, no theme directives. Edge labels carry the commit prefix.
