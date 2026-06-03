@@ -73,6 +73,15 @@ Per `nish-ai-coding` Documented principle:
 - How to use it (minimal example)
 - Architecture diagram (mermaid) if structure is non-trivial
 
+### ROS2 Package README
+
+When documenting a ROS2 package, load `nish-ai-ros2` and apply its per-package README practice. One `README.md` per package, documenting each node:
+
+- Short description and overview
+- Usage
+- API: topics, services, actions
+- Parameters: type, description, default value
+
 ### ADR
 
 Use the Nygard format:
