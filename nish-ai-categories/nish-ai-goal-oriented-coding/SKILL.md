@@ -16,7 +16,7 @@ description: >
 | Load plan + confirm | `think` |
 | Dependency analysis | `think` |
 | Code-writing inside a step | none |
-| Pre-commit gate (test + principle review) | `think` |
+| Pre-commit gate (test + reviewer subagents) | `think` |
 | Commit + handoff | none |
 
 Inject the keyword at the start of the response that opens the phase. Drop it once the phase is done.
@@ -47,9 +47,13 @@ read plan → confirm with user → branch → execute steps → test + commit p
    - Per step: write code (with `nish-ai-coding` auto-active)
 6. **Pre-commit gate** (per step):
    - Run the project's test command — must pass
-   - Explicitly invoke `nish-ai-coding` for principle review of the changes
+   - **Spawn `nish-ai-code-reviewer`** (an `Agent` subagent, fresh context) on the staged diff — every commit, no exceptions. A reviewer with no attachment to how the code was written catches residue the writer's own context hides. It replaces inline principle review.
+   - **Detect security signals** in the staged diff: auth/authz, secrets or env handling, network calls, file-path construction, untrusted input, crypto. Any present → also **spawn `nish-ai-security-reviewer`** on the diff. No signal → skip it.
+   - **Act on severity**:
+     - any **high** finding → blocks the commit. Fix it, then re-spawn the same reviewer on the new diff. Repeat until no high findings remain.
+     - **low** findings → surface as a note to the user; do not block.
    - Validate the step's planned commit message against `nish-ai-github` format (lowercase prefix, imperative, no body)
-   - If any of the above fails, fix before committing; do NOT commit broken state
+   - If the test command fails, fix before committing; do NOT commit broken state
 7. **Commit**: invoke `nish-ai-github`, then commit with the step's declared message from the plan
 8. **Loop** until all steps complete
 9. **Handoff**: post the plan's Test Plan checklist and say:
