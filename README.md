@@ -11,6 +11,8 @@ cd ~/nish-ai && ./install.sh
 
 Symlinks skills into `~/.claude/skills/`, slash commands into `~/.claude/commands/`, reviewer agents into `~/.claude/agents/`, adds the router, writing-style, commit-validator, and uv-enforcement hooks to `~/.claude/settings.json`, wires the writing-style statusline badge, installs the `clangd-lsp` code-intelligence plugin, and sets `autoMemoryEnabled: false` to disable auto-memory. Requires `jq` (`brew install jq`); the plugin step also needs the `claude` CLI.
 
+The diagram-producing skills (`nish-ai-project-planning`, `nish-ai-documentation`, `nish-ai-writing-style`) render mermaid to static images with the Mermaid CLI (`mmdc`) when it is on `PATH`, and fall back to raw mermaid blocks otherwise. It is optional and managed by nish-setup (`brew install mermaid-cli`).
+
 ## Commands
 
 | Command | Action |
