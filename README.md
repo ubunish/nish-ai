@@ -9,7 +9,7 @@ git clone https://github.com/ubunish/nish-ai.git ~/nish-ai
 cd ~/nish-ai && ./install.sh
 ```
 
-Symlinks skills into `~/.claude/skills/`, slash commands into `~/.claude/commands/`, adds the router, writing-style, commit-validator, and uv-enforcement hooks to `~/.claude/settings.json`, wires the writing-style statusline badge, installs the `clangd-lsp` code-intelligence plugin, and sets `autoMemoryEnabled: false` to disable auto-memory. Requires `jq` (`brew install jq`); the plugin step also needs the `claude` CLI.
+Symlinks skills into `~/.claude/skills/`, slash commands into `~/.claude/commands/`, reviewer agents into `~/.claude/agents/`, adds the router, writing-style, commit-validator, and uv-enforcement hooks to `~/.claude/settings.json`, wires the writing-style statusline badge, installs the `clangd-lsp` code-intelligence plugin, and sets `autoMemoryEnabled: false` to disable auto-memory. Requires `jq` (`brew install jq`); the plugin step also needs the `claude` CLI.
 
 ## Commands
 
@@ -20,6 +20,7 @@ Symlinks skills into `~/.claude/skills/`, slash commands into `~/.claude/command
 | `./install.sh status` | Show what's linked |
 | `./tests/run.sh` | Run the commit-hook test suite (no bats; needs `jq` + `perl`) |
 | `./tests/uv.sh` | Run the uv-hook test suite (no bats; needs `jq`) |
+| `./tests/agents.sh` | Run the reviewer-agent test suite (no bats; needs `jq`) |
 
 ## Skills
 
@@ -45,15 +46,27 @@ Symlinked into `~/.claude/commands/` by `install.sh`.
 |---------|--------|
 | `/merge` | Merge the current branch into `main` without a PR, push, and delete the branch (local + remote) |
 
+## Agents
+
+Fresh-context reviewer subagents, symlinked into `~/.claude/agents/` by `install.sh`. Spawned by `nish-ai-goal-oriented-coding` at the commit gate — a reviewer with no attachment to how the code was written catches residue the writer's own context hides. Both run on Haiku, read-only, and return severity-tagged findings: `high` blocks the commit, `low` surfaces as a note.
+
+| Agent | Lens | Spawns |
+|-------|------|--------|
+| `nish-ai-code-reviewer` | The seven `nish-ai-coding` principles | Every commit |
+| `nish-ai-security-reviewer` | Threat checklist (injection, secrets, auth, traversal, crypto, deserialization, info leak, supply chain) | Only when the diff touches a security surface |
+
 ## Tests
 
 `tests/run.sh` covers the two fragile commit hooks with plain bash assertions — no bats, so it runs anywhere the hooks run. It exercises `validate-commit.sh` (pass / rewrite / deny decisions) and `rewrite-commit.pl` (body and trailer collapse, prefix and tail preservation, bail cases). Needs `jq` and `perl`.
 
 `tests/uv.sh` covers the uv-enforcement hook the same way: deny + rewrite for python/pip/poetry/pipenv/virtualenv, and pass-through for uv, conda, an active `$VIRTUAL_ENV`, and the `drop uv` bypass marker. Needs `jq`.
 
+`tests/agents.sh` covers the reviewer agent layer: every `agents/*.md` declares valid frontmatter (name matching filename, description, `model: haiku`, read-only tools), and `install.sh` links the agents into `~/.claude/agents/`, reports them under `status`, and removes them under `uninstall`. The install cycle runs against a throwaway `HOME` with a stub `claude` on `PATH`, so it never touches the real environment or the network. Needs `jq`.
+
 ```
 ./tests/run.sh
 ./tests/uv.sh
+./tests/agents.sh
 ```
 
 ## Repo Layout
@@ -63,7 +76,10 @@ nish-ai/
 ├── install.sh                  link skills + commands, wire hooks
 ├── commands/                   slash commands → ~/.claude/commands/
 │   └── merge.md
-├── tests/                       hook test suites (run.sh, uv.sh)
+├── agents/                      reviewer subagents → ~/.claude/agents/
+│   ├── nish-ai-code-reviewer.md
+│   └── nish-ai-security-reviewer.md
+├── tests/                       hook + agent test suites (run.sh, uv.sh, agents.sh)
 ├── nish-ai-writing-style/      always-on prose style (+ hooks/)
 ├── nish-ai-uv/                 always-on "prefer uv" convention (+ hooks/)
 ├── nish-ai-github/             commit/branch/PR conventions (+ hooks/)
@@ -78,7 +94,7 @@ nish-ai/
     └── nish-ai-ros2/
 ```
 
-`install.sh` finds every `SKILL.md` by `find`, so the `nish-ai-categories/` grouping is for repo organization only — skills link into `~/.claude/skills/` by basename, flat.
+`install.sh` finds every `SKILL.md` by `find`, so the `nish-ai-categories/` grouping is for repo organization only — skills link into `~/.claude/skills/` by basename, flat. Commands and agents link the same way, from `commands/*.md` and `agents/*.md`.
 
 ## Architecture
 
@@ -92,6 +108,7 @@ Two layers: install-time wiring (one-off) and per-session runtime (every session
 flowchart LR
     I["install.sh"] --> S["symlink SKILL.md dirs<br/>→ ~/.claude/skills/"]
     I --> C["symlink commands/*.md<br/>→ ~/.claude/commands/"]
+    I --> AG["symlink agents/*.md<br/>→ ~/.claude/agents/"]
     I --> HR["add router hooks<br/>SessionStart + UserPromptSubmit → settings.json"]
     I --> HS["add writing-style hooks<br/>SessionStart + UserPromptSubmit"]
     I --> HV["add commit-format validator + anchor<br/>SessionStart + PreToolUse(Bash) → settings.json"]
@@ -103,7 +120,7 @@ flowchart LR
 
 | Action | Effect |
 |--------|--------|
-| Symlink | Each skill dir linked into `~/.claude/skills/`, and each `commands/*.md` into `~/.claude/commands/`, so Claude discovers them |
+| Symlink | Each skill dir linked into `~/.claude/skills/`, each `commands/*.md` into `~/.claude/commands/`, and each `agents/*.md` into `~/.claude/agents/`, so Claude discovers them |
 | Router hooks | Hard dispatch, not a soft pointer. SessionStart injects the full router ruleset and arms a once-per-session flag; UserPromptSubmit consumes the flag on the first prompt to force categorize + dispatch. Mirrors the writing-style two-hook pattern |
 | Style hooks | SessionStart injects full ruleset; UserPromptSubmit re-injects a reminder each turn |
 | Commit validator | PreToolUse(Bash) auto-rewrites a `git commit` carrying a body or `Co-Authored-By` trailer down to subject-only, preserving both a `git add … &&` prefix and a chained tail (`&& git log`, `&& git push`); denies only what it cannot safely fix (bad prefix, capitalized subject, trailing period) or cannot safely collapse (a second `git commit` in the tail, or a trailer that would survive in the tail) |
@@ -131,6 +148,7 @@ flowchart TD
     CAT -->|D · docs| DOC["nish-ai-documentation<br/>write docs"]
     CAT -->|E · chore| QT["nish-ai-quick-task<br/>vanilla mode"]
 
+    GOC -.commit gate.-> RV["reviewer agents<br/>code + security (Haiku)"]
     GOC -.commit gate.-> GH["nish-ai-github"]
     DOC -.commit gate.-> GH
     PLAN -.next session.-> GOC
