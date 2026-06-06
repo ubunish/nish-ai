@@ -60,7 +60,7 @@ Each module README answers:
 - What it does (1 line)
 - Why it exists (1 line)
 - How to use it (minimal example)
-- Architecture diagram if structure non-trivial
+- Architecture diagram if structure non-trivial — raw mermaid block, optionally rendered to an image sidecar via `mmdc` (Mermaid CLI) for non-GitHub viewers
 
 ### Tested
 

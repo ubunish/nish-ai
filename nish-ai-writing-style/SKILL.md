@@ -78,6 +78,8 @@ Yes:
 login → token issued → request + token → validate → proceed
 ```
 
+For committed mermaid (DOCS surface), the Mermaid CLI (`mmdc`) is available to render a block to a static image sidecar — useful where mermaid will not render (PDF, non-GitHub preview). Keep the raw mermaid block as the source of truth; the image is a generated artifact. Chat (TERMINAL) diagrams stay inline as ASCII or fenced mermaid — never render those.
+
 ## Boundaries
 
 Override BOTH modes (write full clear prose) only for:

@@ -73,6 +73,14 @@ Per `nish-ai-coding` Documented principle:
 - How to use it (minimal example)
 - Architecture diagram (mermaid) if structure is non-trivial
 
+Embed the architecture diagram as a raw mermaid block — GitHub renders it natively and it stays diffable. When the diagram is non-trivial and the docs may be viewed outside GitHub (PDF, static site, non-rendering preview), also render an image sidecar with the Mermaid CLI and reference it below the source block:
+
+```
+mmdc -i diagram.mmd -o docs/architecture.svg
+```
+
+The mermaid block is the source of truth; the SVG/PNG is a generated artifact. If `mmdc` is absent from `PATH`, keep the raw mermaid block and skip the sidecar.
+
 ### ROS2 Package README
 
 When documenting a ROS2 package, load `nish-ai-ros2` and apply its per-package README practice. One `README.md` per package, documenting each node:
