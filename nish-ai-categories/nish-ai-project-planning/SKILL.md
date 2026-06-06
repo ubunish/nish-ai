@@ -4,8 +4,10 @@ description: >
   Nish's project planning skill. Invoked by nish-ai-prompt-recognition when
   the session's first prompt is to draft a plan (Category A). Grills the
   user one question at a time to build a structured plan, then writes it
-  to plans/YYYY-MM-DD-PLAN.md with an embedded mermaid diagram. Generates
-  a companion .html for complex plans. Adds plans/ to .gitignore if missing.
+  to plans/YYYY-MM-DD-PLAN.md with an embedded mermaid diagram, rendered to
+  a PNG sidecar via the Mermaid CLI (mmdc). Generates a self-contained .html
+  companion (inline SVG, no CDN) for complex plans. Adds plans/ to .gitignore
+  if missing.
   Session ends after plan is written — execution is a separate session.
 ---
 
@@ -25,9 +27,10 @@ grill user → draft plan + diagram → user iterates → user approves → writ
 4. When all questions are resolved, draft the plan (with mermaid diagram) and show it to the user
 5. Iterate until user approves
 6. Write to `plans/YYYY-MM-DD-PLAN.md`
-7. If plan is complex (>7 steps OR has parallel branches), also write `plans/YYYY-MM-DD-PLAN.html`
-8. Add `plans/` to `.gitignore` if not already present
-9. Stop. Do NOT execute the plan.
+7. Render the diagram to `plans/YYYY-MM-DD-PLAN.png` with `mmdc` (skip if `mmdc` is absent)
+8. If plan is complex (>7 steps OR has parallel branches), also write `plans/YYYY-MM-DD-PLAN.html` with the diagram as inline SVG via `mmdc`
+9. Add `plans/` to `.gitignore` if not already present
+10. Stop. Do NOT execute the plan.
 
 ## Grilling Rules
 
@@ -92,6 +95,21 @@ Mermaid is required and always embedded in the .md. Keep it plain — no `classD
 
 Color-coding lives in the HTML companion only.
 
+GitHub and most editors render the embedded mermaid natively, so the raw block is the source of truth — never replace it with an image.
+
+## Diagram Rendering (mmdc)
+
+The Mermaid CLI (`mmdc`) is available for turning mermaid source into static images. Use it for two outputs:
+
+| Output | When | Command |
+|--------|------|---------|
+| `plans/YYYY-MM-DD-PLAN.png` sidecar | Always, alongside the `.md` | `mmdc -i diagram.mmd -o plans/YYYY-MM-DD-PLAN.png` |
+| Inline SVG in the HTML companion | Per the HTML Companion rules | see that section |
+
+The PNG sidecar helps viewers that do not render mermaid (PDF export, chat, non-GitHub previews). The `.md` mermaid block stays the source of truth; the PNG is a generated artifact.
+
+Fallback: if `mmdc` is absent from `PATH`, skip the PNG and tell the user rendering was skipped. The plan `.md` is still complete on its own. Install via nish-setup (`brew install mermaid-cli`).
+
 ## HTML Companion
 
 Generate `plans/YYYY-MM-DD-PLAN.html` only when:
@@ -99,9 +117,19 @@ Generate `plans/YYYY-MM-DD-PLAN.html` only when:
 - Plan has parallel branches (mermaid `&` or multiple paths)
 
 HTML structure:
-- Standalone, single file, no external assets except mermaid.js via CDN
-- Renders the same mermaid diagram with color-coding applied via CSS
+- Standalone, single file, fully self-contained — no external assets, no network
+- Embeds the diagram as inline SVG rendered by the Mermaid CLI (`mmdc`), with color-coding baked in
 - Shows plan title, goal, context, steps, test plan below the diagram
+
+Render with `mmdc` instead of loading mermaid.js from a CDN, so the companion opens offline and never drifts when the CDN version changes:
+
+```
+mmdc -i plans/YYYY-MM-DD-PLAN.mmd -o diagram.svg -c mermaid-config.json
+```
+
+Write the diagram source to a temporary `.mmd` (the color-coded variant — `classDef` per commit prefix is allowed here, unlike the plain `.md` diagram), render to SVG, then inline the SVG into the `.html` and drop the temp files. Color map is the table below.
+
+Fallback: if `mmdc` is not on `PATH`, emit the prior CDN-based HTML (mermaid.js via CDN) and note the degraded mode to the user. `mmdc` ships via nish-setup (`brew install mermaid-cli`).
 
 Color-code by commit prefix:
 
