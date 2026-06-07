@@ -75,6 +75,17 @@ STATUSLINE_MARKER='style-statusline\.sh'
 PLUGIN_NAME='clangd-lsp@claude-plugins-official'
 PLUGIN_MARKETPLACE='anthropics/claude-plugins-official'
 
+# Permission rules: auto-allow the tools that are safe to never prompt for.
+# Merged into .permissions by set membership, so a user's own rules are preserved
+# and only missing entries are added; uninstall removes exactly these.
+#   Tier 1 (allow): read-only + research   Read/Grep/Glob/WebSearch/WebFetch
+#   Tier 2 (allow): writes + local git     Edit/Write/git add|commit|branch|checkout|merge
+# Nothing is denied by default — anything outside the allow list (push, reset,
+# rm -rf, gh pr merge, ...) falls through to a normal prompt rather than a hard
+# block. Add specific entries to PERM_DENY_JSON if a hard block is ever wanted.
+PERM_ALLOW_JSON='["Read","Grep","Glob","WebSearch","WebFetch","Edit","Write","Bash(cd:*)","Bash(git status:*)","Bash(git diff:*)","Bash(git log:*)","Bash(git show:*)","Bash(git branch:*)","Bash(git add:*)","Bash(git commit:*)","Bash(git checkout:*)","Bash(git merge:*)"]'
+PERM_DENY_JSON='[]'
+
 require_jq() {
   command -v jq >/dev/null || { echo "jq required (brew install jq)" >&2; exit 1; }
 }
@@ -555,6 +566,70 @@ uninstall_auto_memory() {
   echo "  remove autoMemoryEnabled"
 }
 
+permissions_installed() {
+  [[ -f "$SETTINGS_FILE" ]] || return 1
+  jq -e --argjson a "$PERM_ALLOW_JSON" --argjson d "$PERM_DENY_JSON" '
+    (($a - (.permissions.allow // [])) | length) == 0
+    and (($d - (.permissions.deny // [])) | length) == 0
+  ' "$SETTINGS_FILE" >/dev/null
+}
+
+install_permissions() {
+  require_jq
+  mkdir -p "$(dirname "$SETTINGS_FILE")"
+  [[ -f "$SETTINGS_FILE" ]] || echo '{}' > "$SETTINGS_FILE"
+  if permissions_installed; then
+    echo "  skip   permission rules (already present)"
+    return
+  fi
+  # Append only the entries we don't already have, preserving existing order and
+  # any rules the user added themselves.
+  local tmp; tmp="$(mktemp)"
+  jq --argjson a "$PERM_ALLOW_JSON" --argjson d "$PERM_DENY_JSON" '
+    .permissions //= {}
+    | .permissions.allow = ((.permissions.allow // []) + ($a - (.permissions.allow // [])))
+    | .permissions.deny  = ((.permissions.deny  // []) + ($d - (.permissions.deny  // [])))
+  ' "$SETTINGS_FILE" > "$tmp"
+  mv "$tmp" "$SETTINGS_FILE"
+  echo "  add    permission rules -> $SETTINGS_FILE"
+}
+
+uninstall_permissions() {
+  [[ -f "$SETTINGS_FILE" ]] || { echo "  skip   permission rules (no settings file)"; return; }
+  require_jq
+  # Remove exactly our entries; leave user-added rules and drop now-empty keys.
+  local tmp; tmp="$(mktemp)"
+  jq --argjson a "$PERM_ALLOW_JSON" --argjson d "$PERM_DENY_JSON" '
+    if .permissions then
+      .permissions.allow = ((.permissions.allow // []) - $a)
+      | .permissions.deny  = ((.permissions.deny  // []) - $d)
+      | (if (.permissions.allow // []) == [] then del(.permissions.allow) else . end)
+      | (if (.permissions.deny  // []) == [] then del(.permissions.deny)  else . end)
+      | (if (.permissions // {}) == {} then del(.permissions) else . end)
+    else . end
+  ' "$SETTINGS_FILE" > "$tmp"
+  mv "$tmp" "$SETTINGS_FILE"
+  echo "  remove permission rules"
+}
+
+status_permissions() {
+  if [[ ! -f "$SETTINGS_FILE" ]] || ! command -v jq >/dev/null; then
+    printf "  %-10s permission rules (cannot verify)\n" "unknown"
+    return
+  fi
+  local miss
+  miss="$(jq -r --argjson a "$PERM_ALLOW_JSON" --argjson d "$PERM_DENY_JSON" \
+    '(($a - (.permissions.allow // [])) + ($d - (.permissions.deny // []))) | length' \
+    "$SETTINGS_FILE")"
+  if [[ "$miss" == "0" ]]; then
+    printf "  %-10s permission rules (allow+deny)\n" "installed"
+  elif jq -e 'has("permissions")' "$SETTINGS_FILE" >/dev/null; then
+    printf "  %-10s permission rules (%s entries absent)\n" "partial" "$miss"
+  else
+    printf "  %-10s permission rules (allow+deny)\n" "missing"
+  fi
+}
+
 uninstall_skills() {
   local count=0
   while IFS= read -r src; do
@@ -613,6 +688,7 @@ cmd_install() {
   install_statusline
   install_plugin
   install_auto_memory
+  install_permissions
 }
 
 cmd_uninstall() {
@@ -626,6 +702,7 @@ cmd_uninstall() {
   uninstall_statusline
   uninstall_plugin
   uninstall_auto_memory
+  uninstall_permissions
 }
 
 cmd_status() {
@@ -639,6 +716,7 @@ cmd_status() {
   status_statusline
   status_plugin
   status_auto_memory
+  status_permissions
 }
 
 case "${1:-install}" in

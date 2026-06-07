@@ -9,7 +9,7 @@ git clone https://github.com/ubunish/nish-ai.git ~/nish-ai
 cd ~/nish-ai && ./install.sh
 ```
 
-Symlinks skills into `~/.claude/skills/`, slash commands into `~/.claude/commands/`, reviewer agents into `~/.claude/agents/`, adds the router, writing-style, commit-validator, and uv-enforcement hooks to `~/.claude/settings.json`, wires the writing-style statusline badge, installs the `clangd-lsp` code-intelligence plugin, and sets `autoMemoryEnabled: false` to disable auto-memory. Requires `jq` (`brew install jq`); the plugin step also needs the `claude` CLI.
+Symlinks skills into `~/.claude/skills/`, slash commands into `~/.claude/commands/`, reviewer agents into `~/.claude/agents/`, adds the router, writing-style, commit-validator, and uv-enforcement hooks to `~/.claude/settings.json`, wires the writing-style statusline badge, installs the `clangd-lsp` code-intelligence plugin, sets `autoMemoryEnabled: false` to disable auto-memory, and merges a set of permission rules into `.permissions` so common safe tools stop prompting. Requires `jq` (`brew install jq`); the plugin step also needs the `claude` CLI.
 
 The diagram-producing skills (`nish-ai-project-planning`, `nish-ai-documentation`, `nish-ai-writing-style`) render mermaid to static images with the Mermaid CLI (`mmdc`) when it is on `PATH`, and fall back to raw mermaid blocks otherwise. It is optional and managed by nish-setup (`brew install mermaid-cli`).
 
@@ -56,6 +56,21 @@ Fresh-context reviewer subagents, symlinked into `~/.claude/agents/` by `install
 |-------|------|--------|
 | `nish-ai-code-reviewer` | The seven `nish-ai-coding` principles | Every commit |
 | `nish-ai-security-reviewer` | Threat checklist (injection, secrets, auth, traversal, crypto, deserialization, info leak, supply chain) | Only when the diff touches a security surface |
+
+## Permissions
+
+`install.sh` merges a set of `allow` permission rules into `.permissions` in `~/.claude/settings.json`, so the session stops prompting for tools that are safe to auto-run. The merge is by set membership: existing rules (yours or Claude Code's own "always allow") are preserved, only missing entries are added, and `uninstall` removes exactly these and nothing else.
+
+The rule of thumb: auto-allow the read-only and local-reversible work; let everything else fall through to a normal prompt.
+
+| Tier | Rule | Rules |
+|------|------|-------|
+| 1 | allow | `Read`, `Grep`, `Glob`, `WebSearch`, `WebFetch`, `cd` — zero side effects |
+| 2 | allow | `Edit`, `Write`, `git add\|commit\|branch\|checkout\|merge` — local, reversible |
+
+Nothing is denied. Anything outside the allow list (`git push`, `git reset --hard`, `rm -rf`, `gh pr merge`, ...) falls through to a normal permission prompt rather than a hard block, so Claude can still run it when asked. The deny logic stays in `install.sh` with an empty list — add an entry to `PERM_DENY_JSON` if a hard block is ever wanted.
+
+Tier 3 uses `deny` (not absence) on purpose: `deny` wins over `allow`, so these keep prompting even if a broad allow rule lands later. Tier 2 writes are auto-allowed because the `nish-ai-goal-oriented-coding` commit gate and reviewer agents already catch problems before the commit; push, merge, and release stay manual.
 
 ## Tests
 
