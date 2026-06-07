@@ -67,10 +67,14 @@ The rule of thumb: auto-allow the read-only and local-reversible work; let every
 |------|------|-------|
 | 1 | allow | `Read`, `Grep`, `Glob`, `WebSearch`, `WebFetch`, `cd` — zero side effects |
 | 2 | allow | `Edit`, `Write`, `git add\|commit\|branch\|checkout\|merge` — local, reversible |
+| 3 | allow | `ls`, `cat`, `pwd`, `which`, `find`, `head`, `tail`, `wc`, `file`, `tree` — read-only shell |
+| 4 | allow | `npm test\|run`, `pytest`, `ruff`, `eslint`, `tsc`, `uv run` — test/lint/build, no network |
+
+Tiers 3-4 never touch the network and read project code only. Network installs and arbitrary remote execution (`npm install`, `npx`, `uvx`, `pip install`, ...) are deliberately left off the allow list — they pull and run remote code, so they keep prompting as a supply-chain guard.
 
 Nothing is denied. Anything outside the allow list (`git push`, `git reset --hard`, `rm -rf`, `gh pr merge`, ...) falls through to a normal permission prompt rather than a hard block, so Claude can still run it when asked. The deny logic stays in `install.sh` with an empty list — add an entry to `PERM_DENY_JSON` if a hard block is ever wanted.
 
-Tier 3 uses `deny` (not absence) on purpose: `deny` wins over `allow`, so these keep prompting even if a broad allow rule lands later. Tier 2 writes are auto-allowed because the `nish-ai-goal-oriented-coding` commit gate and reviewer agents already catch problems before the commit; push, merge, and release stay manual.
+Tier 4's `npm run` / `uv run` execute whatever the project's scripts define, so the allow list trusts the contents of the repo you are working in. Tier 2 writes are auto-allowed because the `nish-ai-goal-oriented-coding` commit gate and reviewer agents already catch problems before the commit; push, merge, and release stay manual. A `deny` entry wins over `allow`, so adding one to `PERM_DENY_JSON` keeps that tool prompting even if a broad allow rule lands later.
 
 ## Tests
 

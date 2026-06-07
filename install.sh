@@ -80,10 +80,16 @@ PLUGIN_MARKETPLACE='anthropics/claude-plugins-official'
 # and only missing entries are added; uninstall removes exactly these.
 #   Tier 1 (allow): read-only + research   Read/Grep/Glob/WebSearch/WebFetch
 #   Tier 2 (allow): writes + local git     Edit/Write/git add|commit|branch|checkout|merge
+#   Tier 3 (allow): read-only shell        ls/cat/pwd/which/find/head/tail/wc/file/tree
+#   Tier 4 (allow): test/lint/build        npm test|run, pytest, ruff, eslint, tsc, uv run
+# Tiers 3-4 never touch the network and read project code only. Network installs
+# and arbitrary remote execution (npm install, npx, uvx, pip install, ...) are
+# left OFF the allow list on purpose — they pull and run remote code, so they
+# keep prompting as a supply-chain guard.
 # Nothing is denied by default — anything outside the allow list (push, reset,
 # rm -rf, gh pr merge, ...) falls through to a normal prompt rather than a hard
 # block. Add specific entries to PERM_DENY_JSON if a hard block is ever wanted.
-PERM_ALLOW_JSON='["Read","Grep","Glob","WebSearch","WebFetch","Edit","Write","Bash(cd:*)","Bash(git status:*)","Bash(git diff:*)","Bash(git log:*)","Bash(git show:*)","Bash(git branch:*)","Bash(git add:*)","Bash(git commit:*)","Bash(git checkout:*)","Bash(git merge:*)"]'
+PERM_ALLOW_JSON='["Read","Grep","Glob","WebSearch","WebFetch","Edit","Write","Bash(cd:*)","Bash(git status:*)","Bash(git diff:*)","Bash(git log:*)","Bash(git show:*)","Bash(git branch:*)","Bash(git add:*)","Bash(git commit:*)","Bash(git checkout:*)","Bash(git merge:*)","Bash(ls:*)","Bash(cat:*)","Bash(pwd)","Bash(which:*)","Bash(find:*)","Bash(head:*)","Bash(tail:*)","Bash(wc:*)","Bash(file:*)","Bash(tree:*)","Bash(npm test:*)","Bash(npm run:*)","Bash(pytest:*)","Bash(ruff:*)","Bash(eslint:*)","Bash(tsc:*)","Bash(uv run:*)"]'
 PERM_DENY_JSON='[]'
 
 require_jq() {
