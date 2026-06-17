@@ -8,6 +8,19 @@ description: >
   abstraction, self-explaining. Off only on "drop coding style".
 ---
 
+## Build Ladder
+
+Before writing code, climb these rungs in order. Stop at the first that solves the problem. The lower the rung, the less code you own and maintain.
+
+1. **Does it already exist?** — reuse a function, module, or pattern already in the codebase before adding anything new.
+2. **Standard library** — solve it with the language's stdlib before reaching outward.
+3. **Native platform** — use a built-in platform or framework capability before adding a dependency.
+4. **Installed dependency** — use a library already in the project before installing a new one.
+5. **One-line addition** — if a new dependency is unavoidable, prefer the smallest one that does the job.
+6. **Minimum new code** — write the least code that satisfies the requirement, nothing speculative.
+
+This ladder governs Claude's auto-output — restraint on what Claude builds unprompted. A deliberate own-library choice the user has decided on is the override: when the design lane (`nish-ai-project-planning`) has chosen to build or adopt something, that decision wins over the ladder. The ladder never overrides the Scalable principle in the design lane.
+
 ## Principles
 
 1. **Modular** — single responsibility per unit
