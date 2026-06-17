@@ -19,9 +19,6 @@ RECOG_UP_MARKER='recognition-prompt-submit\.sh'
 RECOG_CAT_CMD='bash "$HOME/.claude/skills/nish-ai-prompt-recognition/hooks/recognition-category-tracker.sh"'
 RECOG_CAT_MARKER='recognition-category-tracker\.sh'
 RECOG_CAT_MATCHER='Skill'
-# Legacy soft-pointer hook removed on upgrade. Marker targets the old echo text,
-# not the path, so it never matches the new script commands.
-LEGACY_RECOG_MARKER='Invoke the nish-ai-prompt-recognition skill'
 
 # Writing-style enforcement hooks (caveman-style: full ruleset at session start,
 # one-line reminder every turn). $HOME expands at hook runtime, not now.
@@ -506,8 +503,6 @@ status_agents() {
 }
 
 install_recognition_hooks() {
-  # Drop the legacy soft-pointer SessionStart hook before adding the new pair.
-  remove_hook SessionStart "$LEGACY_RECOG_MARKER" "legacy router hook"
   add_hook SessionStart     "$RECOG_SS_CMD" "$RECOG_SS_MARKER" "router SessionStart hook"
   add_hook UserPromptSubmit "$RECOG_UP_CMD" "$RECOG_UP_MARKER" "router UserPromptSubmit hook"
   add_hook PostToolUse      "$RECOG_CAT_CMD" "$RECOG_CAT_MARKER" "category tracker hook" "$RECOG_CAT_MATCHER"
@@ -517,7 +512,6 @@ uninstall_recognition_hooks() {
   remove_hook SessionStart     "$RECOG_SS_MARKER" "router SessionStart hook"
   remove_hook UserPromptSubmit "$RECOG_UP_MARKER" "router UserPromptSubmit hook"
   remove_hook PostToolUse      "$RECOG_CAT_MARKER" "category tracker hook"
-  remove_hook SessionStart     "$LEGACY_RECOG_MARKER" "legacy router hook"
 }
 
 status_recognition_hooks() {
