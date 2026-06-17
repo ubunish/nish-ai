@@ -121,6 +121,12 @@ Comment when WHY is non-obvious:
 total_cents = math.floor(amount * 100)
 ```
 
+Mark a deliberately cheap choice with a typed `tradeoff:` comment. It names the ceiling the choice holds to and the upgrade path when that ceiling is hit. This keeps a shortcut honest — visible as a decision, not mistaken for the best option:
+```python
+# tradeoff: linear scan, fine under ~1k items; switch to an indexed lookup past that
+match = next((r for r in records if r.id == target), None)
+```
+
 ## ROS2
 
 When the code under edit is ROS2 (a `package.xml` with ament, `rclpy`/`rclcpp`, `.msg`/`.srv`/`.action`, or a `launch/`/`config/` folder), load `nish-ai-ros2` and enforce its thirty practices at the commit boundary alongside these seven principles.
