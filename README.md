@@ -47,6 +47,7 @@ Symlinked into `~/.claude/commands/` by `install.sh`.
 | Command | Action |
 |---------|--------|
 | `/merge` | Merge the current branch into `main` without a PR, push, and delete the branch (local + remote) |
+| `/cut` | Audit the whole repository for deletable code — spawns the code reviewer in repo mode for a ranked, deletion-only pass |
 
 ## Agents
 
@@ -56,6 +57,8 @@ Fresh-context reviewer subagents, symlinked into `~/.claude/agents/` by `install
 |-------|------|--------|
 | `nish-ai-code-reviewer` | The seven `nish-ai-coding` principles | Every commit |
 | `nish-ai-security-reviewer` | Threat checklist (injection, secrets, auth, traversal, crypto, deserialization, info leak, supply chain) | Only when the diff touches a security surface |
+
+`nish-ai-code-reviewer` runs in two modes. **Diff mode** is the commit-gate review above — one staged diff against the seven `nish-ai-coding` principles, severity-tagged. **Repo mode**, reached via `/cut`, audits the whole repository for deletable code: it proposes removals only (never rewrites), tags each by reason (`delete`/`stdlib`/`native`/`yagni`/`shrink`), ranks by payoff, and closes with a `net: -N lines, -M deps` total.
 
 ## Permissions
 
