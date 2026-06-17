@@ -9,7 +9,7 @@ git clone https://github.com/ubunish/nish-ai.git ~/nish-ai
 cd ~/nish-ai && ./install.sh
 ```
 
-Symlinks skills into `~/.claude/skills/`, slash commands into `~/.claude/commands/`, reviewer agents into `~/.claude/agents/`, adds the router, writing-style, commit-validator, and uv-enforcement hooks to `~/.claude/settings.json`, wires the writing-style statusline badge, installs the `clangd-lsp` code-intelligence plugin, sets `autoMemoryEnabled: false` to disable auto-memory, and merges a set of permission rules into `.permissions` so common safe tools stop prompting. Requires `jq` (`brew install jq`); the plugin step also needs the `claude` CLI.
+Symlinks skills into `~/.claude/skills/`, slash commands into `~/.claude/commands/`, reviewer agents into `~/.claude/agents/`, adds the router, writing-style, commit-validator, and uv-enforcement hooks to `~/.claude/settings.json`, wires the writing-style statusline badge, installs the `clangd-lsp` code-intelligence plugin, installs and registers the codebase-memory MCP server (see [Memory](#memory)), sets `autoMemoryEnabled: false` to disable auto-memory, and merges a set of permission rules into `.permissions` so common safe tools stop prompting. Requires `jq` (`brew install jq`); the plugin and memory steps also need the `claude` CLI.
 
 The diagram-producing skills (`nish-ai-project-planning`, `nish-ai-documentation`, `nish-ai-writing-style`) render mermaid to static images with the Mermaid CLI (`mmdc`) when it is on `PATH`, and fall back to raw mermaid blocks otherwise. It is optional and managed by nish-setup (`brew install mermaid-cli`).
 
@@ -79,6 +79,20 @@ Nothing is denied. Anything outside the allow list (`git push`, `git reset --har
 
 Tier 4's `npm run` / `uv run` execute whatever the project's scripts define, so the allow list trusts the contents of the repo you are working in. Tier 2 writes are auto-allowed because the `nish-ai-goal-oriented-coding` commit gate and reviewer agents already catch problems before the commit; push, merge, and release stay manual. A `deny` entry wins over `allow`, so adding one to `PERM_DENY_JSON` keeps that tool prompting even if a broad allow rule lands later.
 
+## Memory
+
+`install.sh` provisions the [codebase-memory](https://github.com/DeusData/codebase-memory-mcp) MCP server: a per-project knowledge graph (symbols, calls, routes, architecture) that Claude queries through graph tools. It installs the static binary to `~/.local/bin/codebase-memory-mcp`, registers it with Claude Code at user scope so every project sees the tools, and sets `auto_index=true`. This step moved here from nish-setup, which no longer provisions memory.
+
+```
+auto_index=true on session start:
+  new project       → indexed on first connect (up to auto_index_limit files)
+  indexed project   → registered with the background git watcher → incremental refresh
+```
+
+No per-repo ceremony: open a repo in a Claude session and it indexes itself, then refreshes as files change. The binary installs with `--skip-config` (binary only) — nish-ai owns the Claude Code registration rather than letting the upstream installer wire every detected agent.
+
+Graphs live in `~/.cache/codebase-memory-mcp/` (one `.db` per project, plus a shared `_config.db`), so nothing lands in the repo. `install.sh status` reports the binary version, registration state, and `auto_index` value. `install.sh uninstall` unregisters the server, resets `auto_index`, and removes the binary; cached graphs are left in place.
+
 ## Tests
 
 `tests/run.sh` covers the two fragile commit hooks with plain bash assertions — no bats, so it runs anywhere the hooks run. It exercises `validate-commit.sh` (pass / rewrite / deny decisions) and `rewrite-commit.pl` (body and trailer collapse, prefix and tail preservation, bail cases). Needs `jq` and `perl`.
@@ -139,6 +153,7 @@ flowchart LR
     I --> HU["add uv anchor + enforcement hook<br/>SessionStart + PreToolUse(Bash) → settings.json"]
     I --> SL["wire statusline badge<br/>.statusLine → settings.json"]
     I --> PL["install clangd-lsp plugin<br/>claude plugin install"]
+    I --> MM["install codebase-memory mcp<br/>binary + mcp add + auto_index"]
     I --> M["set autoMemoryEnabled=false<br/>→ settings.json"]
 ```
 
@@ -151,6 +166,7 @@ flowchart LR
 | uv enforcement | PreToolUse(Bash) blocks a bare `python`/`pip`/`poetry`/`pipenv`/`virtualenv` call and denies it with the uv rewrite (`python app.py` → `uv run app.py`); passes through uv, conda, an active `$VIRTUAL_ENV`, and the `drop uv` bypass marker |
 | Statusline badge | Sets `.statusLine` to render the `✎ style:on`/`off` + category badge, only when no status line is set yet; a custom `.statusLine` is left untouched |
 | Plugin install | Installs the `clangd-lsp` code-intelligence plugin via the `claude plugin` CLI (marketplace `anthropics/claude-plugins-official`), idempotent; skipped if the `claude` CLI is absent |
+| Memory install | Installs the codebase-memory binary (`--skip-config`), registers it with Claude Code at user scope, and sets `auto_index=true`, idempotent; see [Memory](#memory) |
 | Auto-memory off | Disables built-in auto-memory; this system owns workflow state |
 
 All hooks are idempotent; `uninstall` and `status` cover every hook above.
