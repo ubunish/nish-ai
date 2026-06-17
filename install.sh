@@ -72,6 +72,17 @@ STATUSLINE_MARKER='style-statusline\.sh'
 PLUGIN_NAME='clangd-lsp@claude-plugins-official'
 PLUGIN_MARKETPLACE='anthropics/claude-plugins-official'
 
+# Codebase-memory MCP: a per-project knowledge-graph server, registered with
+# Claude Code at user scope so every repo gets the graph tools. We install the
+# static binary with --skip-config (binary only, no per-agent wiring), register
+# it ourselves, and flip on auto_index. With auto_index=true a new project indexes
+# on first connect and an already-indexed one refreshes through the background
+# git watcher — no per-repo ceremony. Cached graphs live in ~/.cache, so nothing
+# lands in the repo. Moved here from nish-setup, which now owns no memory step.
+CBM_BIN="$HOME/.local/bin/codebase-memory-mcp"
+CBM_MCP_NAME='codebase-memory'
+CBM_INSTALL_URL='https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh'
+
 # Permission rules: auto-allow the tools that are safe to never prompt for.
 # Merged into .permissions by set membership, so a user's own rules are preserved
 # and only missing entries are added; uninstall removes exactly these.
@@ -355,6 +366,91 @@ status_plugin() {
     printf "  %-10s %s\n" "installed" "$PLUGIN_NAME"
   else
     printf "  %-10s %s\n" "missing" "$PLUGIN_NAME"
+  fi
+}
+
+cbm_registered() {
+  command -v claude >/dev/null || return 1
+  claude mcp list 2>/dev/null | grep -q "^${CBM_MCP_NAME}:"
+}
+
+install_memory() {
+  # Binary first, idempotent. --skip-config installs the binary only; we wire
+  # Claude Code ourselves below rather than let the upstream installer touch
+  # every agent it auto-detects.
+  if [[ -x "$CBM_BIN" ]]; then
+    echo "  skip   codebase-memory binary (already installed)"
+  elif ! command -v curl >/dev/null; then
+    echo "  skip   codebase-memory binary (curl not found)"
+    return
+  elif curl -fsSL "$CBM_INSTALL_URL" | bash -s -- --skip-config >/dev/null 2>&1; then
+    echo "  add    codebase-memory binary"
+  else
+    echo "  fail   codebase-memory binary (install script failed)"
+    return
+  fi
+
+  # Register at user scope so all projects see the graph tools.
+  if ! command -v claude >/dev/null; then
+    echo "  skip   codebase-memory mcp (claude CLI not found)"
+    return
+  fi
+  if cbm_registered; then
+    echo "  skip   codebase-memory mcp (already registered)"
+  elif claude mcp add --scope user "$CBM_MCP_NAME" "$CBM_BIN" >/dev/null 2>&1; then
+    echo "  add    codebase-memory mcp (user scope)"
+  else
+    echo "  fail   codebase-memory mcp (claude mcp add failed)"
+  fi
+
+  # auto_index: new projects index on first connect, existing ones refresh via
+  # the background git watcher. Idempotent.
+  if "$CBM_BIN" config set auto_index true >/dev/null 2>&1; then
+    echo "  set    auto_index=true"
+  else
+    echo "  fail   auto_index (config set failed)"
+  fi
+}
+
+uninstall_memory() {
+  if cbm_registered; then
+    claude mcp remove --scope user "$CBM_MCP_NAME" >/dev/null 2>&1 || true
+    echo "  remove codebase-memory mcp"
+  else
+    echo "  skip   codebase-memory mcp (not registered)"
+  fi
+  # Reset auto_index before removing the binary — reset needs the binary to run.
+  if [[ -x "$CBM_BIN" ]]; then
+    "$CBM_BIN" config reset auto_index >/dev/null 2>&1 || true
+    rm -f "$CBM_BIN"
+    echo "  remove codebase-memory binary"
+  else
+    echo "  skip   codebase-memory binary (not installed)"
+  fi
+  # Cached graphs in ~/.cache/codebase-memory-mcp/ are left in place.
+}
+
+status_memory() {
+  if [[ -x "$CBM_BIN" ]]; then
+    printf "  %-10s codebase-memory binary (%s)\n" "installed" "$("$CBM_BIN" --version 2>/dev/null | head -1)"
+  else
+    printf "  %-10s codebase-memory binary\n" "missing"
+  fi
+  if ! command -v claude >/dev/null; then
+    printf "  %-10s codebase-memory mcp (claude CLI not found)\n" "unknown"
+  elif cbm_registered; then
+    printf "  %-10s codebase-memory mcp (user scope)\n" "registered"
+  else
+    printf "  %-10s codebase-memory mcp\n" "missing"
+  fi
+  if [[ -x "$CBM_BIN" ]]; then
+    local ai
+    ai="$("$CBM_BIN" config list 2>/dev/null | awk '/auto_index /{print $3}')"
+    if [[ "$ai" == "true" ]]; then
+      printf "  %-10s auto_index=true\n" "set"
+    else
+      printf "  %-10s auto_index=%s\n" "missing" "${ai:-false}"
+    fi
   fi
 }
 
@@ -687,6 +783,7 @@ cmd_install() {
   install_uv_hook
   install_statusline
   install_plugin
+  install_memory
   install_auto_memory
   install_permissions
 }
@@ -701,6 +798,7 @@ cmd_uninstall() {
   uninstall_uv_hook
   uninstall_statusline
   uninstall_plugin
+  uninstall_memory
   uninstall_auto_memory
   uninstall_permissions
 }
@@ -715,6 +813,7 @@ cmd_status() {
   status_uv_hook
   status_statusline
   status_plugin
+  status_memory
   status_auto_memory
   status_permissions
 }
