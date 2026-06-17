@@ -39,6 +39,14 @@ Ask one question at a time. Each question follows the grill-me pattern:
 - Surface tradeoffs the user should weigh
 - If the answer is discoverable from the codebase, explore the codebase first
 
+### Scope Challenge (mandatory)
+
+Every grill includes a scope-challenge pass — no skip. For each proposed piece of the plan, probe whether it needs to exist now or is speculative:
+- Does this piece solve a problem the user has today, or one they imagine they might have?
+- Can the plan ship without it and add it later when the need is real?
+
+Before drafting, name what is explicitly NOT being built — the deferred and rejected scope. This makes the cut visible and keeps the plan honest about its boundaries. A plan that builds everything proposed has not been challenged.
+
 Stop grilling when:
 - Goal, context, every step, every commit boundary, and every test-plan item are pinned down
 - User says "enough questions, draft the plan"
