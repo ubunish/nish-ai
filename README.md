@@ -9,9 +9,9 @@ git clone https://github.com/ubunish/nish-ai.git ~/nish-ai
 cd ~/nish-ai && ./install.sh
 ```
 
-Symlinks skills into `~/.claude/skills/`, slash commands into `~/.claude/commands/`, reviewer agents into `~/.claude/agents/`, adds the router, writing-style, commit-validator, and uv-enforcement hooks to `~/.claude/settings.json`, wires the writing-style statusline badge, installs the `clangd-lsp` code-intelligence plugin, installs and registers the codebase-memory MCP server (see [Memory](#memory)), sets `autoMemoryEnabled: false` to disable auto-memory, and merges a set of permission rules into `.permissions` so common safe tools stop prompting. Requires `jq` (`brew install jq`); the plugin and memory steps also need the `claude` CLI.
+Symlinks skills into `~/.claude/skills/`, slash commands into `~/.claude/commands/`, reviewer agents into `~/.claude/agents/`, adds the router, writing-style, commit-validator, and uv-enforcement hooks to `~/.claude/settings.json`, wires the writing-style statusline badge, installs the `clangd-lsp` code-intelligence plugin, provisions the d2 diagram renderer (see [Skills](#skills)), installs and registers the codebase-memory MCP server (see [Memory](#memory)), sets `autoMemoryEnabled: false` to disable auto-memory, and merges a set of permission rules into `.permissions` so common safe tools stop prompting. Requires `jq` (`brew install jq`); the plugin and memory steps also need the `claude` CLI; the d2 step needs `curl`.
 
-The diagram-producing skills (`nish-ai-project-planning`, `nish-ai-documentation`, `nish-ai-writing-style`) render mermaid to static images with the Mermaid CLI (`mmdc`) when it is on `PATH`, and fall back to raw mermaid blocks otherwise. It is optional and managed by nish-setup (`brew install mermaid-cli`).
+Two diagram renderers, split by skill. `nish-ai-project-planning` and `nish-ai-writing-style` render mermaid to static images with the Mermaid CLI (`mmdc`) when it is on `PATH`, and fall back to raw mermaid blocks otherwise — mermaid-cli is optional and managed by nish-setup (`brew install mermaid-cli`). `nish-ai-documentation` renders diagrams with terrastruct's d2 instead, backed by the `nish-ai-d2` authoring skill; `install.sh` provisions the d2 binary system-wide via the upstream installer.
 
 ## Commands
 
@@ -39,6 +39,7 @@ The diagram-producing skills (`nish-ai-project-planning`, `nish-ai-documentation
 | `nish-ai-quick-task` | Vanilla Claude mode |
 | `nish-ai-ros2` | Auto-active ROS2 best practices (rides the always-on tier) |
 | `nish-ai-uv` | Auto-active "prefer uv" convention + SessionStart anchor + PreToolUse enforcement hook |
+| `nish-ai-d2` | d2 diagram authoring reference, loaded by name by `nish-ai-documentation` |
 
 ## Slash Commands
 
@@ -122,6 +123,7 @@ nish-ai/
 ├── nish-ai-uv/                 always-on "prefer uv" convention (+ hooks/)
 ├── nish-ai-github/             commit/branch/PR conventions (+ hooks/)
 ├── nish-ai-prompt-recognition/ session router (+ hooks/)
+├── nish-ai-d2/                 d2 diagram authoring reference (loaded by name)
 └── nish-ai-categories/         skills dispatched by the router
     ├── nish-ai-coding/
     ├── nish-ai-project-planning/
@@ -153,6 +155,7 @@ flowchart LR
     I --> HU["add uv anchor + enforcement hook<br/>SessionStart + PreToolUse(Bash) → settings.json"]
     I --> SL["wire statusline badge<br/>.statusLine → settings.json"]
     I --> PL["install clangd-lsp plugin<br/>claude plugin install"]
+    I --> D2["install d2 renderer<br/>curl-pipe installer"]
     I --> MM["install codebase-memory mcp<br/>binary + mcp add + auto_index"]
     I --> M["set autoMemoryEnabled=false<br/>→ settings.json"]
 ```
@@ -166,6 +169,7 @@ flowchart LR
 | uv enforcement | PreToolUse(Bash) blocks a bare `python`/`pip`/`poetry`/`pipenv`/`virtualenv` call and denies it with the uv rewrite (`python app.py` → `uv run app.py`); passes through uv, conda, an active `$VIRTUAL_ENV`, and the `drop uv` bypass marker |
 | Statusline badge | Sets `.statusLine` to render the `✎ style:on`/`off` + category badge, only when no status line is set yet; a custom `.statusLine` is left untouched |
 | Plugin install | Installs the `clangd-lsp` code-intelligence plugin via the `claude plugin` CLI (marketplace `anthropics/claude-plugins-official`), idempotent; skipped if the `claude` CLI is absent |
+| d2 install | Provisions terrastruct's d2 diagram renderer system-wide via the upstream curl-pipe installer (`https://d2lang.com/install.sh`), idempotent; skipped if `curl` is absent. Backs the `nish-ai-d2` skill and the documentation skill's diagrams |
 | Memory install | Installs the codebase-memory binary (`--skip-config`), registers it with Claude Code at user scope, and sets `auto_index=true`, idempotent; see [Memory](#memory) |
 | Auto-memory off | Disables built-in auto-memory; this system owns workflow state |
 
