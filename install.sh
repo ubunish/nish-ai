@@ -83,6 +83,12 @@ CBM_BIN="$HOME/.local/bin/codebase-memory-mcp"
 CBM_MCP_NAME='codebase-memory'
 CBM_INSTALL_URL='https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh'
 
+# d2 diagram renderer: the documentation skill draws diagrams with terrastruct's
+# d2, rendered to an SVG sidecar. Provisioned system-wide via the upstream
+# curl-pipe installer, which drops the binary on PATH; the same script removes it
+# with --uninstall. Detection is command -v d2 — no install record to track.
+D2_INSTALL_URL='https://d2lang.com/install.sh'
+
 # Permission rules: auto-allow the tools that are safe to never prompt for.
 # Merged into .permissions by set membership, so a user's own rules are preserved
 # and only missing entries are added; uninstall removes exactly these.
@@ -366,6 +372,50 @@ status_plugin() {
     printf "  %-10s %s\n" "installed" "$PLUGIN_NAME"
   else
     printf "  %-10s %s\n" "missing" "$PLUGIN_NAME"
+  fi
+}
+
+d2_installed() {
+  command -v d2 >/dev/null
+}
+
+install_d2() {
+  if d2_installed; then
+    echo "  skip   d2 binary (already installed)"
+    return
+  fi
+  if ! command -v curl >/dev/null; then
+    echo "  skip   d2 binary (curl not found)"
+    return
+  fi
+  if curl -fsSL "$D2_INSTALL_URL" | sh -s -- >/dev/null 2>&1; then
+    echo "  add    d2 binary"
+  else
+    echo "  fail   d2 binary (install script failed)"
+  fi
+}
+
+uninstall_d2() {
+  if ! d2_installed; then
+    echo "  skip   d2 binary (not installed)"
+    return
+  fi
+  if ! command -v curl >/dev/null; then
+    echo "  skip   d2 binary (curl not found)"
+    return
+  fi
+  if curl -fsSL "$D2_INSTALL_URL" | sh -s -- --uninstall >/dev/null 2>&1; then
+    echo "  remove d2 binary"
+  else
+    echo "  fail   d2 binary (uninstall script failed)"
+  fi
+}
+
+status_d2() {
+  if d2_installed; then
+    printf "  %-10s d2 binary (%s)\n" "installed" "$(d2 --version 2>/dev/null | head -1)"
+  else
+    printf "  %-10s d2 binary\n" "missing"
   fi
 }
 
@@ -783,6 +833,7 @@ cmd_install() {
   install_uv_hook
   install_statusline
   install_plugin
+  install_d2
   install_memory
   install_auto_memory
   install_permissions
@@ -798,6 +849,7 @@ cmd_uninstall() {
   uninstall_uv_hook
   uninstall_statusline
   uninstall_plugin
+  uninstall_d2
   uninstall_memory
   uninstall_auto_memory
   uninstall_permissions
@@ -813,6 +865,7 @@ cmd_status() {
   status_uv_hook
   status_statusline
   status_plugin
+  status_d2
   status_memory
   status_auto_memory
   status_permissions
