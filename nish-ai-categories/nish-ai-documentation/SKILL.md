@@ -71,15 +71,15 @@ Per `nish-ai-coding` Documented principle:
 - What it does (1 line)
 - Why it exists (1 line)
 - How to use it (minimal example)
-- Architecture diagram (mermaid) if structure is non-trivial
+- Architecture diagram (d2) if structure is non-trivial
 
-Embed the architecture diagram as a raw mermaid block — GitHub renders it natively and it stays diffable. When the diagram is non-trivial and the docs may be viewed outside GitHub (PDF, static site, non-rendering preview), also render an image sidecar with the Mermaid CLI and reference it below the source block:
+Draw architecture diagrams with d2 — load `nish-ai-d2` for the syntax and render command. The `.d2` source is the source of truth; commit it alongside the doc. Render it to an SVG sidecar and reference the SVG below the source block:
 
 ```
-mmdc -i diagram.mmd -o docs/architecture.svg
+d2 diagram.d2 architecture.svg
 ```
 
-The mermaid block is the source of truth; the SVG/PNG is a generated artifact. If `mmdc` is absent from `PATH`, keep the raw mermaid block and skip the sidecar.
+GitHub does not render `.d2` inline, so the SVG is the viewable artifact — embed it with `![architecture](architecture.svg)`. The `.d2` block stays the source of truth; the SVG is a generated artifact. If `d2` is absent from `PATH`, keep the raw `.d2` source block and skip the sidecar.
 
 ### ROS2 Package README
 
