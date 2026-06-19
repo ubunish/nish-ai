@@ -29,7 +29,7 @@ grill user → draft plan + diagram → user iterates → user approves → writ
 6. Write to `plans/YYYY-MM-DD-PLAN.md`
 7. Render the diagram to `plans/YYYY-MM-DD-PLAN.png` with `mmdc` (skip if `mmdc` is absent)
 8. If plan is complex (>7 steps OR has parallel branches), also write `plans/YYYY-MM-DD-PLAN.html` with the diagram as inline SVG via `mmdc`
-9. Add `plans/` to `.gitignore` if not already present
+9. Add `plans/` to `.gitignore` if not already present. If this changed `.gitignore`, commit that one file with `chore: ignore plans directory` (local only — user pushes). Do NOT commit the plan files; they stay ignored.
 10. Stop. Do NOT execute the plan.
 
 ## Grilling Rules
@@ -156,7 +156,7 @@ If plan is simple (≤7 steps, linear), do NOT generate HTML. Mermaid in the .md
 
 Plans live at `plans/YYYY-MM-DD-PLAN.md` from the repo root.
 
-If `plans/` is not in `.gitignore`, add it. Plans are working artifacts, not committed history.
+If `plans/` is not in `.gitignore`, add it, then commit only the `.gitignore` with `chore: ignore plans directory`. Committing the rule closes the loop — a later session inherits a clean working tree instead of an unstaged `.gitignore` edit. Plans themselves are working artifacts, not committed history.
 
 If more than one plan is written on the same day, append a slug:
 `plans/YYYY-MM-DD-PLAN-<slug>.md` (e.g. `2026-05-28-PLAN-auth-rewrite.md`)
