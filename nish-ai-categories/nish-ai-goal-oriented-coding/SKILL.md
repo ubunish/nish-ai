@@ -37,6 +37,8 @@ No plan found in plans/. Start a planning session first (will dispatch to nish-a
 read plan → confirm with user → branch → execute steps → test + commit per step → handoff to user
 ```
 
+The `/execute` slash command runs this same workflow on the latest `plans/*.md` without the confirm step — it executes on sight and stops only when the plan is already done. Use it to skip the manual dispatch and "Proceed?" gate.
+
 1. **Load plan**: read the latest `plans/YYYY-MM-DD-PLAN.md`
 2. **Confirm**: announce `Plan loaded: <title>, <N> steps, <M> commits. Proceed?` and wait for approval
 3. **Branch**: create working branch using the plan's overall prefix and title slug (per `nish-ai-github`)
