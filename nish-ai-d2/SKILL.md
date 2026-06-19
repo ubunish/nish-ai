@@ -7,8 +7,9 @@ description: >
   construct-picker map, core syntax (shapes, connections, containers, labels),
   structured diagram types (sequence, ER/sql_table, class, grid), rich labels
   (markdown, code, latex), icons, near positioning, arrowheads, reuse (vars,
-  classes, globs), multi-board layers, layout direction, label style aligned
-  with nish-ai-writing-style, and the absent-binary fallback.
+  classes, globs), multi-board layers, layout engines (dagre, ELK, TALA),
+  layout direction, label style aligned with nish-ai-writing-style, and the
+  absent-binary fallback.
   Targets terrastruct's d2 (https://d2lang.com).
 ---
 
@@ -42,7 +43,7 @@ Match the doc's intent to a d2 construct before writing syntax. Default to box-a
 d2 --layout elk --font-regular GeistMono-VF.ttf --font-bold GeistMono-VF.ttf --font-italic GeistMono-VF.ttf diagram.d2 diagram.svg
 ```
 
-Always render with `--layout elk` and the brand font. ELK routes edges as straight orthogonal segments; the default dagre engine splines them into curves. Straight edges read cleaner and are the house preference — use ELK for every diagram unless a specific layout demands otherwise.
+Always render with `--layout elk` and the brand font for committed docs. ELK routes edges as straight orthogonal segments, which read cleaner than dagre's curves. See Layout Engines below for the full choice and when a dense architecture map earns TALA instead.
 
 Per repo, commit a `render.sh` next to the diagrams that wraps this command with the repo-relative font path, so anyone re-renders without personal tooling.
 
@@ -54,9 +55,29 @@ GitHub does not render `.d2` inline, so reference the rendered SVG in the doc:
 ![architecture](architecture.svg)
 ```
 
+## Layout Engines
+
+d2 ships three layout engines. ELK is the house default for committed docs.
+
+| Engine | Edges | Best for | Cost |
+|--------|-------|----------|------|
+| dagre | curved splines | quick hierarchies | built-in |
+| ELK | straight orthogonal | house default — every doc diagram | built-in |
+| TALA | architecture-tuned | dense software-architecture maps | closed-source, eval watermark until licensed |
+
+Keep ELK as the default — straight edges read cleaner. Reach for TALA only when a dense architecture diagram lays out poorly under ELK; it is built for that case. `install.sh` bundles TALA with d2 (the upstream `--tala` flag), so the `d2plugin-tala` binary is on `PATH`. Confirm with `d2 layout tala`.
+
+Render with TALA by swapping the layout flag:
+
+```
+d2 --layout tala --font-regular GeistMono-VF.ttf --font-bold GeistMono-VF.ttf --font-italic GeistMono-VF.ttf diagram.d2 diagram.svg
+```
+
+TALA runs in evaluation mode until a `TSTRUCT_TOKEN` is set — diagrams carry a watermark. Fine for drafting; set the token, or fall back to ELK, before committing an SVG a reader sees.
+
 ## Absent Binary Fallback
 
-If `d2` is not on `PATH`, keep the raw `.d2` source block in the doc and skip the sidecar — same behavior as mermaid with an absent `mmdc`. `install.sh` provisions the binary; `command -v d2` confirms it.
+If `d2` is not on `PATH`, keep the raw `.d2` source block in the doc and skip the sidecar — same behavior as mermaid with an absent `mmdc`. `install.sh` provisions d2 with TALA bundled; `command -v d2` confirms the renderer, `d2 layout tala` confirms the TALA plugin.
 
 ## Font
 
