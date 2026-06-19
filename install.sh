@@ -85,8 +85,12 @@ CBM_INSTALL_URL='https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/
 
 # d2 diagram renderer: the documentation skill draws diagrams with terrastruct's
 # d2, rendered to an SVG sidecar. Provisioned system-wide via the upstream
-# curl-pipe installer, which drops the binary on PATH; the same script removes it
-# with --uninstall. Detection is command -v d2 — no install record to track.
+# curl-pipe installer with --tala, which drops both the d2 binary and the TALA
+# layout plugin (d2plugin-tala) on PATH; the same script removes them with
+# --uninstall. TALA is the architecture-tuned layout engine — closed-source and
+# license-gated, it runs in evaluation mode (watermarked) until a TSTRUCT_TOKEN
+# is set, which is enough for local rendering. Detection is command -v on both
+# binaries — no install record to track.
 D2_INSTALL_URL='https://d2lang.com/install.sh'
 
 # Permission rules: auto-allow the tools that are safe to never prompt for.
@@ -375,8 +379,10 @@ status_plugin() {
   fi
 }
 
+# Installed only when both the d2 binary and the TALA plugin are present, so a
+# box with d2 but no TALA still upgrades on the next install run.
 d2_installed() {
-  command -v d2 >/dev/null
+  command -v d2 >/dev/null && command -v d2plugin-tala >/dev/null
 }
 
 install_d2() {
@@ -388,8 +394,8 @@ install_d2() {
     echo "  skip   d2 binary (curl not found)"
     return
   fi
-  if curl -fsSL "$D2_INSTALL_URL" | sh -s -- >/dev/null 2>&1; then
-    echo "  add    d2 binary"
+  if curl -fsSL "$D2_INSTALL_URL" | sh -s -- --tala >/dev/null 2>&1; then
+    echo "  add    d2 binary (with TALA)"
   else
     echo "  fail   d2 binary (install script failed)"
   fi
@@ -404,16 +410,18 @@ uninstall_d2() {
     echo "  skip   d2 binary (curl not found)"
     return
   fi
-  if curl -fsSL "$D2_INSTALL_URL" | sh -s -- --uninstall >/dev/null 2>&1; then
-    echo "  remove d2 binary"
+  if curl -fsSL "$D2_INSTALL_URL" | sh -s -- --tala --uninstall >/dev/null 2>&1; then
+    echo "  remove d2 binary (with TALA)"
   else
     echo "  fail   d2 binary (uninstall script failed)"
   fi
 }
 
 status_d2() {
-  if d2_installed; then
-    printf "  %-10s d2 binary (%s)\n" "installed" "$(d2 --version 2>/dev/null | head -1)"
+  if command -v d2 >/dev/null; then
+    tala="without TALA"
+    command -v d2plugin-tala >/dev/null && tala="with TALA"
+    printf "  %-10s d2 binary (%s, %s)\n" "installed" "$(d2 --version 2>/dev/null | head -1)" "$tala"
   else
     printf "  %-10s d2 binary\n" "missing"
   fi
