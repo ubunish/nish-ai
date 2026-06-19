@@ -40,10 +40,10 @@ Match the doc's intent to a d2 construct before writing syntax. Default to box-a
 ## Render
 
 ```
-d2 --layout elk --font-regular GeistMono-VF.ttf --font-bold GeistMono-VF.ttf --font-italic GeistMono-VF.ttf diagram.d2 diagram.svg
+d2 --layout elk --font-regular <font>.ttf --font-bold <font>.ttf --font-italic <font>.ttf diagram.d2 diagram.svg
 ```
 
-Always render with `--layout elk` and the brand font for committed docs. ELK routes edges as straight orthogonal segments, which read cleaner than dagre's curves. See Layout Engines below for the full choice and when a dense architecture map earns TALA instead.
+Always render with `--layout elk` and a committed font for diagrams in committed docs. ELK routes edges as straight orthogonal segments, which read cleaner than dagre's curves. See Layout Engines below for the full choice and when a dense architecture map earns TALA instead, and Font below for choosing and passing the font.
 
 Per repo, commit a `render.sh` next to the diagrams that wraps this command with the repo-relative font path, so anyone re-renders without personal tooling.
 
@@ -70,7 +70,7 @@ Keep ELK as the default — straight edges read cleaner. Reach for TALA only whe
 Render with TALA by swapping the layout flag:
 
 ```
-d2 --layout tala --font-regular GeistMono-VF.ttf --font-bold GeistMono-VF.ttf --font-italic GeistMono-VF.ttf diagram.d2 diagram.svg
+d2 --layout tala --font-regular <font>.ttf --font-bold <font>.ttf --font-italic <font>.ttf diagram.d2 diagram.svg
 ```
 
 TALA runs in evaluation mode until a `TSTRUCT_TOKEN` is set — diagrams carry a watermark. Fine for drafting; set the token, or fall back to ELK, before committing an SVG a reader sees.
@@ -81,42 +81,22 @@ If `d2` is not on `PATH`, keep the raw `.d2` source block in the doc and skip th
 
 ## Font
 
-**Geist Mono** — the house brand monospace ([Vercel](https://github.com/vercel/geist-font), OFL). `install.sh` provisions it under the skill's `fonts/`; copy the TTF into each repo (e.g. `docs/diagrams/fonts/`) and commit it, so rendering is self-contained for anyone with the repo. Mono suits the technical tokens diagrams carry (package names, file paths, identifiers). Never render with the d2 default font.
+Never render with d2's default font. Pick a font, commit its TTF into the repo (e.g. `docs/diagrams/fonts/`), and pass it with `--font-regular` / `--font-bold` / `--font-italic`, so rendering is self-contained for anyone with the repo. A monospace font suits the technical tokens diagrams carry (package names, file paths, identifiers). A project or brand skill may pin a specific font — load it for the exact TTF and flags.
 
-## Palette + Block Grammar
+## Shared Styles
 
-First Motive colours (mirror firstmotive.ai). Define once in a `styles.d2`, import with `...@styles`:
+Define reused colours and classes once in a `styles.d2`, then import them with `...@styles` so every diagram in a repo pulls the same palette:
 
 ```
 classes: {
-  block: { grid-gap: 0; style.fill: transparent; style.stroke: "#3B3443" }
-  zoom: { grid-gap: 0; style.fill: transparent; style.stroke: "#3B3443"; style.stroke-dash: 4 }
-  role: { style.fill: "#3B3443"; style.font-color: "#ECE2CF" }
-  pkg: { style.fill: "#B6A5C6"; style.font-color: "#342E3B" }
-  art: { style.fill: "#E7DDC8"; style.font-color: "#342E3B" }
+  box:    { style.fill: transparent; style.stroke: "#333333" }
+  zoom:   { style.fill: transparent; style.stroke: "#333333"; style.stroke-dash: 4 }
+  accent: { style.fill: "#4C78A8"; style.font-color: "#FFFFFF" }
 }
-(* -> *).style.stroke: "#3B3443"
+(* -> *).style.stroke: "#333333"
 ```
 
-A component is a stacked block — a `grid-rows` container holding banded rows, one colour per tier so a band's colour names its kind:
-
-```
-role → human label (plum)   pkg → package (lavender)   art → artifact / node (cream)
-```
-
-```
-view: "" {
-  grid-rows: 3
-  class: block
-  r: View { class: role }
-  p: fm_description { class: pkg }
-  a: view_robot.launch.py { class: art }
-}
-```
-
-- Blocks without a package (process steps, plugins) drop the `pkg` band.
-- A block expanded in a deeper diagram uses `class: zoom` (dashed border).
-- Diagrams nest from orientation to detail; a dashed block names where it expands.
+This skill covers the mechanism, not a specific palette. A project or brand skill carries the actual colours and any block grammar built on them — load it for those.
 
 ## Core Syntax
 
@@ -222,7 +202,7 @@ Repo: { shape: class
 
 ### Grid
 
-`grid-rows` / `grid-columns` tile children with no edges; `grid-gap` sets spacing. The house block grammar above builds on this.
+`grid-rows` / `grid-columns` tile children with no edges; `grid-gap` sets spacing. A banded-block grammar (carried by a project skill) builds on this.
 
 ## Rich Labels
 
@@ -279,10 +259,10 @@ Heads: `triangle` `arrow` `diamond` `circle` `box` `cross`; ER `cf-one` `cf-many
 
 ## Reuse: vars And Classes
 
-`vars` holds reused values, referenced with `${...}`. `classes` holds reused styles, applied with `class:` (see Palette + Block Grammar above). A glob applies one rule across every match.
+`vars` holds reused values, referenced with `${...}`. `classes` holds reused styles, applied with `class:` (see Shared Styles above). A glob applies one rule across every match.
 
 ```
-vars: { primary: "#B6A5C6" }
+vars: { primary: "#4C78A8" }
 node: { style.fill: ${primary} }
 
 *.style.border-radius: 8
@@ -303,7 +283,7 @@ layers: {
 - `scenarios` — boards that inherit the base, then override (states of one system).
 - `steps` — boards that accumulate (build up a sequence).
 
-Pairs with the house `class: zoom` rule: a dashed block names where it expands into a deeper board.
+Pairs with a dashed `zoom` class (`style.stroke-dash`): a dashed block names where it expands into a deeper board.
 
 ## Layout Direction
 
