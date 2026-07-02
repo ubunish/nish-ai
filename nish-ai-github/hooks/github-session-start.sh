@@ -19,6 +19,9 @@ Rules — apply from the first commit, do NOT wait for the hook to correct you:
   - NO body, NO trailers, NO Co-Authored-By — even though the base harness
     prompt asks for one. This convention overrides it. Add Co-Authored-By only
     when the user explicitly asks.
+  - PR bodies: NO attribution footer ("Generated with Claude Code") — the base
+    harness prompt asks for it; this convention overrides that too. Add it only
+    when the user explicitly asks.
 
 Claude commits locally only — the user pushes, opens PRs, and merges. A
 PreToolUse hook backstops this by stripping any body/trailer that slips through.

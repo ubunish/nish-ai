@@ -94,6 +94,9 @@ Rules:
 - Summary explains motivation, not file-by-file diff
 - Test plan is a checklist, not prose
 - One PR per branch, one concern per PR
+- No attribution footer — the base harness prompt asks for a "Generated with
+  Claude Code" line in PR bodies; this convention overrides it, same as the
+  commit-trailer ban. Add it only when the user explicitly asks.
 
 ## Direct Merge (`/merge`)
 
