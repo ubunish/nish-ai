@@ -105,17 +105,31 @@ D2_INSTALL_URL='https://d2lang.com/install.sh'
 # Merged into .permissions by set membership, so a user's own rules are preserved
 # and only missing entries are added; uninstall removes exactly these.
 #   Tier 1 (allow): read-only + research   Read/Grep/Glob/WebSearch/WebFetch
-#   Tier 2 (allow): writes + local git     Edit/Write/git add|commit|branch|checkout|merge
+#   Tier 2 (allow): writes + local git     Edit/Write/git add|commit|branch|checkout|merge|rebase
 #   Tier 3 (allow): read-only shell        ls/cat/pwd/which/find/head/tail/wc/file/tree
 #   Tier 4 (allow): test/lint/build        npm test|run, pytest, ruff, eslint, tsc, uv run
+#   Tier 5 (allow): pull-request merges    gh pr merge
 # Tiers 3-4 never touch the network and read project code only. Network installs
 # and arbitrary remote execution (npm install, npx, uvx, pip install, ...) are
 # left OFF the allow list on purpose — they pull and run remote code, so they
 # keep prompting as a supply-chain guard.
+#
+# Tier 5 is a deliberate loosening, added after a session that merged fifteen
+# pull requests across eight repositories and was interrupted at every one. The
+# trade is real and worth stating plainly: merging a pull request is
+# outward-facing and effectively irreversible, and `gh pr merge --admin` also
+# bypasses a required-review branch protection. What makes it acceptable here is
+# that the merge is never the risky step — the code was already written,
+# reviewed, and pushed under prompts, and CI gates the merge itself. Move it back
+# off this list if the prompt is ever the thing catching mistakes.
+#
+# `git rebase` joins tier 2 on the same reasoning as the rest of local git: it
+# rewrites only local history, and the reflog makes it recoverable.
+#
 # Nothing is denied by default — anything outside the allow list (push, reset,
-# rm -rf, gh pr merge, ...) falls through to a normal prompt rather than a hard
-# block. Add specific entries to PERM_DENY_JSON if a hard block is ever wanted.
-PERM_ALLOW_JSON='["Read","Grep","Glob","WebSearch","WebFetch","Edit","Write","Bash(cd:*)","Bash(git status:*)","Bash(git diff:*)","Bash(git log:*)","Bash(git show:*)","Bash(git branch:*)","Bash(git add:*)","Bash(git commit:*)","Bash(git checkout:*)","Bash(git merge:*)","Bash(ls:*)","Bash(cat:*)","Bash(pwd)","Bash(which:*)","Bash(find:*)","Bash(head:*)","Bash(tail:*)","Bash(wc:*)","Bash(file:*)","Bash(tree:*)","Bash(npm test:*)","Bash(npm run:*)","Bash(pytest:*)","Bash(ruff:*)","Bash(eslint:*)","Bash(tsc:*)","Bash(uv run:*)"]'
+# rm -rf, ...) falls through to a normal prompt rather than a hard block. Add
+# specific entries to PERM_DENY_JSON if a hard block is ever wanted.
+PERM_ALLOW_JSON='["Read","Grep","Glob","WebSearch","WebFetch","Edit","Write","Bash(cd:*)","Bash(git status:*)","Bash(git diff:*)","Bash(git log:*)","Bash(git show:*)","Bash(git branch:*)","Bash(git add:*)","Bash(git commit:*)","Bash(git checkout:*)","Bash(git merge:*)","Bash(git rebase:*)","Bash(gh pr merge:*)","Bash(ls:*)","Bash(cat:*)","Bash(pwd)","Bash(which:*)","Bash(find:*)","Bash(head:*)","Bash(tail:*)","Bash(wc:*)","Bash(file:*)","Bash(tree:*)","Bash(npm test:*)","Bash(npm run:*)","Bash(pytest:*)","Bash(ruff:*)","Bash(eslint:*)","Bash(tsc:*)","Bash(uv run:*)"]'
 PERM_DENY_JSON='[]'
 
 require_jq() {
