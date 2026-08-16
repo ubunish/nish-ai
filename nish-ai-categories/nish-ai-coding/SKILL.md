@@ -1,11 +1,13 @@
 ---
 name: nish-ai-coding
 description: >
-  Nish's coding principles. Auto-active whenever Claude writes or edits
-  source code in any session. Also invoked explicitly by
-  nish-ai-goal-oriented-coding at commit boundaries. Seven principles:
-  modular, scalable, consistent, documented, tested, no premature
-  abstraction, self-explaining. Off only on "drop coding style".
+  Nish's coding principles and build ladder. Load before writing or editing
+  source code in any session — invoke it when a task is about to produce or
+  change code. Dispatched explicitly by nish-ai-goal-oriented-coding before
+  execution and by nish-ai-quick-task on code-touching chores; a PreToolUse
+  hook injects a compact reminder on the first source edit as backstop.
+  Seven principles: modular, scalable, consistent, documented, tested, no
+  premature abstraction, self-explaining. Off only on "drop coding style".
 ---
 
 ## Build Ladder
@@ -133,4 +135,4 @@ When the code under edit is ROS2 (a `package.xml` with ament, `rclpy`/`rclcpp`, 
 
 ## Lifetime
 
-Auto-active when writing or editing source. Invoked explicitly by `nish-ai-goal-oriented-coding` at commit boundaries to verify principles. Off only on "drop coding style".
+Loaded by explicit dispatch: `nish-ai-goal-oriented-coding` invokes it before executing plan steps, `nish-ai-quick-task` invokes it when a chore touches source. Backstop: a PreToolUse hook (`hooks/coding-pretooluse.sh`) injects the ladder and principles on the first source-file edit of any session, so unrouted sessions still get the ruleset. The `nish-ai-code-reviewer` agent re-checks the same seven principles at commit boundaries with fresh context. "drop coding style" creates `~/.claude/.coding-off`, which silences the hook; delete the marker to re-arm.

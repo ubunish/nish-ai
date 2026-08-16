@@ -31,7 +31,7 @@ Two diagram renderers, split by skill. `nish-ai-project-planning` and `nish-ai-w
 | `nish-ai-writing-style` | Auto-active prose style, two modes by surface (TERMINAL / DOCS) |
 | `nish-ai-github` | Commit + branch + PR conventions |
 | `nish-ai-prompt-recognition` | Session router (fires once) |
-| `nish-ai-coding` | Auto-active coding principles |
+| `nish-ai-coding` | Coding principles + build ladder (dispatch + first-edit anchor) |
 | `nish-ai-project-planning` | Grill-me planner → `plans/*.md` |
 | `nish-ai-user-question` | Answer + recommendation + tradeoff |
 | `nish-ai-goal-oriented-coding` | Plan execution workflow |
@@ -210,14 +210,15 @@ flowchart TD
         SL["statusLine hook<br/>render style:on/off badge"]
         PV["PreToolUse(Bash) hook<br/>validate commit message"]
         PU["PreToolUse(Bash) hook<br/>block bare python/pip → uv"]
+        PC["PreToolUse(Edit|Write) hook<br/>inject ladder + principles on first source edit"]
         SS --> WS["nish-ai-writing-style"]
         UP --> WS
         SL --> WS
         PV --> GH["nish-ai-github"]
         PU --> UV["nish-ai-uv"]
+        PC --> CD["nish-ai-coding"]
     end
     subgraph disc["skill-discovery"]
-        CD["nish-ai-coding<br/>auto-active on code write"]
         RO["nish-ai-ros2<br/>auto-active on ROS2 code"]
         UVD["nish-ai-uv<br/>auto-active on Python signals"]
     end
@@ -231,7 +232,7 @@ flowchart TD
 | Skill | Mechanism | Triggers on | Off switch |
 |-------|-----------|-------------|------------|
 | `nish-ai-writing-style` | Hooks (SessionStart + UserPromptSubmit + statusLine badge) | Every session + every turn | "drop style" / "verbose mode" → off-flag; "resume style" → on |
-| `nish-ai-coding` | Skill discovery | Any source-code write or edit | "drop coding style" |
+| `nish-ai-coding` | Explicit dispatch (goal-oriented-coding, quick-task) + PreToolUse(Edit\|Write) anchor | First source-file edit of a session; before plan execution; code-touching chores | "drop coding style" → writes `~/.claude/.coding-off` marker; anchor stands down |
 | `nish-ai-ros2` | Skill discovery | ROS2 signals: `package.xml` (ament), `rclpy`/`rclcpp`, `.msg`/`.srv`/`.action`, `launch/`/`config/` | "drop ros2" |
 | `nish-ai-github` | SessionStart anchor + PreToolUse(Bash) validator + explicit invoke | Every session; every `git commit`; commit / branch / PR boundary | validator auto-fixes or denies malformed commits, not user-toggleable |
 | `nish-ai-uv` | Skill discovery + SessionStart anchor + PreToolUse(Bash) hook | Every session; Python signals: `*.py`, `pip`/`poetry`/`pipenv`/`virtualenv`, `requirements.txt`, `pyproject.toml` | "drop uv" → writes `~/.claude/.uv-off` marker; anchor and hook stand down, skill stops applying |

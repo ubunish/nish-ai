@@ -59,6 +59,14 @@ UV_HOOK_MARKER='uv-pretooluse\.sh'
 UV_SS_CMD='bash "$HOME/.claude/skills/nish-ai-uv/hooks/uv-session-start.sh"'
 UV_SS_MARKER='uv-session-start\.sh'
 
+# Coding-principles anchor: PreToolUse on Edit|Write, injects the build ladder
+# and seven principles as additionalContext on the first source-file edit of a
+# session — before the write, where the ladder can still shape it. Once per
+# session; non-source files pass through silently.
+CODING_HOOK_CMD='bash "$HOME/.claude/skills/nish-ai-coding/hooks/coding-pretooluse.sh"'
+CODING_HOOK_MARKER='coding-pretooluse\.sh'
+CODING_HOOK_MATCHER='Edit|Write'
+
 # Statusline badge: renders the writing-style on/off state and session category.
 # Unlike the hooks above, .statusLine is a single object (not a list), so it is
 # set only when absent or when it still points at our script — never clobbering a
@@ -831,6 +839,26 @@ status_auto_memory() {
   fi
 }
 
+install_coding_hook() {
+  add_hook PreToolUse "$CODING_HOOK_CMD" "$CODING_HOOK_MARKER" "coding-principles anchor" "$CODING_HOOK_MATCHER"
+}
+
+uninstall_coding_hook() {
+  remove_hook PreToolUse "$CODING_HOOK_MARKER" "coding-principles anchor"
+}
+
+status_coding_hook() {
+  if [[ ! -f "$SETTINGS_FILE" ]] || ! command -v jq >/dev/null; then
+    printf "  %-10s coding-principles anchor (cannot verify)\n" "unknown"
+    return
+  fi
+  if hook_installed_for PreToolUse "$CODING_HOOK_MARKER"; then
+    printf "  %-10s coding-principles anchor (PreToolUse)\n" "installed"
+  else
+    printf "  %-10s coding-principles anchor (PreToolUse)\n" "missing"
+  fi
+}
+
 cmd_install() {
   install_skills
   install_commands
@@ -839,6 +867,7 @@ cmd_install() {
   install_style_hooks
   install_github_hook
   install_uv_hook
+  install_coding_hook
   install_statusline
   install_plugin
   install_d2
@@ -855,6 +884,7 @@ cmd_uninstall() {
   uninstall_style_hooks
   uninstall_github_hook
   uninstall_uv_hook
+  uninstall_coding_hook
   uninstall_statusline
   uninstall_plugin
   uninstall_d2
@@ -871,6 +901,7 @@ cmd_status() {
   status_style_hooks
   status_github_hook
   status_uv_hook
+  status_coding_hook
   status_statusline
   status_plugin
   status_d2

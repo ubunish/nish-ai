@@ -5,8 +5,8 @@ description: >
   when the session's first prompt is light-touch housekeeping (Category E,
   `chore` commit prefix): dep bumps, file moves, gitignore/config edits,
   one-line bash operations. Vanilla Claude mode — no plan, no commit gate.
-  Auto-active skills (nish-ai-writing-style, nish-ai-coding if code is
-  touched) still apply. User commits at their own discretion.
+  nish-ai-writing-style still applies; if the chore touches source code,
+  invoke nish-ai-coding first. User commits at their own discretion.
 ---
 
 ## Thinking
@@ -26,9 +26,11 @@ Light-touch housekeeping. Common cases:
 
 Vanilla Claude. Do the task, report the result. No plan, no commit workflow, no pre-commit gate.
 
-What still applies (because auto-active):
-- `nish-ai-writing-style` — terse responses
-- `nish-ai-coding` — if the chore involves writing code
+What still applies:
+- `nish-ai-writing-style` — terse responses (hook-injected, always on)
+- `nish-ai-coding` — if the chore involves writing or editing source code,
+  invoke it (Skill tool) BEFORE the first edit; the PreToolUse anchor is a
+  backstop, not the primary path
 
 What does NOT apply:
 - `nish-ai-project-planning` — no plan file

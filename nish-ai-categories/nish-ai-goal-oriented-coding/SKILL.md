@@ -44,9 +44,14 @@ The `/execute` slash command runs this same workflow on the latest `plans/*.md` 
 3. **Branch**: create working branch using the plan's overall prefix and title slug (per `nish-ai-github`)
 4. **Dependency analysis**: from the plan's diagram + step descriptions, identify which steps are independent and which depend on earlier steps
 5. **Execute** (loop):
-   - Independent step group → spawn `Agent` subagents in parallel
+   - Before the first step: invoke `nish-ai-coding` (Skill tool) so the build
+     ladder and seven principles load before any code is written — the ladder
+     governs what to build, so loading it after the fact defeats it
+   - Independent step group → spawn `Agent` subagents in parallel; each
+     subagent prompt names the build ladder and seven principles (subagents do
+     not inherit this session's loaded skills)
    - Dependent step → execute sequentially after its dependencies finish
-   - Per step: write code (with `nish-ai-coding` auto-active)
+   - Per step: write code under `nish-ai-coding` rules
 6. **Pre-commit gate** (per step):
    - Run the project's test command — must pass
    - **Spawn `nish-ai-code-reviewer`** (an `Agent` subagent, fresh context) on the staged diff — every commit, no exceptions. A reviewer with no attachment to how the code was written catches residue the writer's own context hides. It replaces inline principle review.
