@@ -342,9 +342,22 @@ plugin_installed() {
   claude plugin list 2>/dev/null | grep -q "$PLUGIN_NAME"
 }
 
+# True when the user has explicitly disabled the plugin in settings
+# (enabledPlugins["<name>"] == false). An explicit disable is a user decision
+# the installer must not override — install skips instead of re-enabling.
+plugin_disabled_by_user() {
+  [[ -f "$SETTINGS_FILE" ]] || return 1
+  command -v jq >/dev/null || return 1
+  jq -e --arg p "$PLUGIN_NAME" '.enabledPlugins[$p] == false' "$SETTINGS_FILE" >/dev/null 2>&1
+}
+
 install_plugin() {
   if ! command -v claude >/dev/null; then
     echo "  skip   $PLUGIN_NAME (claude CLI not found)"
+    return
+  fi
+  if plugin_disabled_by_user; then
+    echo "  skip   $PLUGIN_NAME (disabled in settings; remove the enabledPlugins false entry to reinstall)"
     return
   fi
   if plugin_installed; then
@@ -380,7 +393,9 @@ status_plugin() {
     printf "  %-10s %s (claude CLI not found)\n" "unknown" "$PLUGIN_NAME"
     return
   fi
-  if plugin_installed; then
+  if plugin_disabled_by_user; then
+    printf "  %-10s %s (user-disabled in settings)\n" "disabled" "$PLUGIN_NAME"
+  elif plugin_installed; then
     printf "  %-10s %s\n" "installed" "$PLUGIN_NAME"
   else
     printf "  %-10s %s\n" "missing" "$PLUGIN_NAME"
