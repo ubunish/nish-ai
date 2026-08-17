@@ -63,15 +63,30 @@ The `/execute` slash command runs this same workflow on the latest `plans/*.md` 
    - If the test command fails, fix before committing; do NOT commit broken state
 7. **Commit**: invoke `nish-ai-github`, then commit with the step's declared message from the plan
 8. **Loop** until all steps complete
-9. **Handoff**: post the plan's Test Plan checklist and say:
+9. **Assert the work is still local**: run the check below and read its output.
+   The session never claims "done", "shipped", or "merged" — the work is
+   unpushed by design, and the handoff must say so in those words.
 
+   ```bash
+   git rev-parse --abbrev-ref @{u} 2>/dev/null || echo "NO UPSTREAM — branch never pushed"
+   git cherry -v main HEAD | grep -c '^+' || true
    ```
-   All steps committed locally. Run the test plan, then push + merge:
 
-   <checklist from plan>
-   ```
+   Report both numbers verbatim in the handoff. A status or session-summary
+   file written afterwards states *committed locally on `<branch>`*, never
+   *pushed* or *merged*, unless a `git push` in this session actually
+   succeeded and its output is in the transcript.
 
-10. **Stop**. User pushes, opens PR if needed, merges.
+10. **Handoff**: post the plan's Test Plan checklist and say:
+
+    ```
+    <N> commits on <branch>, local only — nothing pushed, nothing merged.
+    Run the test plan, then push + merge:
+
+    <checklist from plan>
+    ```
+
+11. **Stop**. User pushes, opens PR if needed, merges.
 
 ## Parallel Execution Rules
 
