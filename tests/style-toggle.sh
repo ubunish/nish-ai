@@ -44,7 +44,7 @@ submit "$(prompt_payload 'drop style')" >/dev/null
 assert_off "drop style turns it off"
 submit "$(prompt_payload 'resume style')" >/dev/null
 assert_on "resume style turns it back on"
-submit "$(prompt_payload 'verbose mode please')" >/dev/null
+submit "$(prompt_payload 'verbose mode')" >/dev/null
 assert_off "verbose mode turns it off"
 submit "$(prompt_payload 'style on')" >/dev/null
 assert_on "style on turns it back on"
@@ -69,10 +69,20 @@ submit "$(jq -nc '{session_id:"s",cwd:"/tmp/drop style",prompt:"run install.sh"}
 assert_on "cwd does not toggle"
 submit "$(jq -nc '{session_id:"s",transcript_path:"/tmp/verbose mode.jsonl",prompt:"ls"}')" >/dev/null
 assert_on "transcript_path does not toggle"
-# A prompt that only quotes the phrase as documentation still toggles — the
-# match is on the prompt text, and that text is what the user typed.
+# A prompt that merely mentions the phrase must not toggle. Agent task
+# notifications arrive as user prompts, so a reviewer quoting "drop style" in
+# its findings used to switch the style off mid-session.
 submit "$(prompt_payload 'the readme says "drop style" turns it off')" >/dev/null
-assert_off "quoted phrase in the prompt still toggles"
+assert_on "quoted phrase does not toggle"
+submit "$(prompt_payload '<task-notification>finding: add drop style to the docs</task-notification>')" >/dev/null
+assert_on "task notification does not toggle"
+
+echo "whole-prompt match"
+rm -f "$OFF_FLAG"
+submit "$(prompt_payload '  drop style  ')" >/dev/null
+assert_off "surrounding whitespace still toggles"
+submit "$(prompt_payload 'resume style.')" >/dev/null
+assert_on "trailing punctuation still toggles"
 
 echo "resume path does not delete either"
 rm -f "$OFF_FLAG"

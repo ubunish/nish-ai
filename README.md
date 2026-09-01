@@ -109,7 +109,7 @@ Graphs live in `~/.cache/codebase-memory-mcp/` (one `.db` per project, plus a sh
 
 `tests/session-id.sh` covers the hooks that write a flag file under a path built from the payload (`coding-pretooluse.sh`, the three `recognition-*` hooks, `style-prompt-submit.sh`). A `session_id` carrying `../` is stripped to a safe segment, the marker still lands inside the directory the hook owns, nothing lands above it, and an id left empty by stripping falls back to `default`. A symlink planted at a flag path is left alone rather than followed, so a toggle cannot truncate what it points at. Runs against a throwaway `HOME` and `TMPDIR`. Needs `jq`.
 
-`tests/style-toggle.sh` covers the writing-style toggle: `drop style` / `verbose mode` set the off-flag, `resume style` / `style on` / `enable style` clear it, the per-turn reminder is emitted only while style is on, a phrase riding along in `cwd` or `transcript_path` does not toggle, and the raw-payload fallback still toggles when `jq` is absent. Runs against a throwaway `HOME`. Needs `jq`.
+`tests/style-toggle.sh` covers the writing-style toggle: `drop style` / `verbose mode` set the off-flag, `resume style` / `style on` / `enable style` clear it, the per-turn reminder is emitted only while style is on, a phrase merely mentioned — quoted in a longer prompt, carried in `cwd` or `transcript_path`, or echoed by an agent task notification — does not toggle, and the raw-payload fallback still toggles when `jq` is absent. Runs against a throwaway `HOME`. Needs `jq`.
 
 ```
 ./tests/run.sh
@@ -253,7 +253,7 @@ Beyond auto-activation, `nish-ai-ros2` folds into three category skills at their
 
 `nish-ai-uv` mirrors the writing-style architecture: a passive auto-active skill carries the WHY and the command mapping, a SessionStart anchor primes the mapping from message one so uv is the default reach, and an active PreToolUse(Bash) hook backstops it by blocking any bare `python`/`pip`/`poetry`/`pipenv`/`virtualenv` that slips through and returning the uv rewrite. nish-setup owns the uv binary and builds the `~/.venvs/*` environments; this skill owns Claude's behavior. "drop uv" writes `~/.claude/.uv-off`, which the hook checks first — present → no-op. Conda is never redirected.
 
-Off-flag lives at `~/.claude/.nish-style-off`. Present → both style hooks no-op. Toggled by phrase, persists across turns. The `statusLine` hook (`style-statusline.sh`) reads the same flag and renders a `✎ style:on` / `✎ style:off` badge so the active state is visible. `install.sh` wires it into the `statusLine` setting, but only when no status line is set yet — a custom `.statusLine` is left untouched.
+Off-flag lives at `~/.claude/.nish-style-off`. Present → both style hooks no-op. Toggled by phrase, persists across turns. A toggle phrase must be the whole prompt (surrounding whitespace and trailing punctuation aside) — mentioning one mid-sentence does nothing. Agent task notifications reach the hook as user prompts, so a substring match let a reviewer quoting `drop style` in its findings switch the style off mid-session. The `statusLine` hook (`style-statusline.sh`) reads the same flag and renders a `✎ style:on` / `✎ style:off` badge so the active state is visible. `install.sh` wires it into the `statusLine` setting, but only when no status line is set yet — a custom `.statusLine` is left untouched.
 
 #### Statusline
 
