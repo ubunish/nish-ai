@@ -17,6 +17,10 @@ OFF_FLAG="$HOME/.claude/.nish-style-off"
 # matched against the raw payload directly — no jq needed to extract .prompt.
 INPUT="$(cat)"
 
+# Refuse a symlink at the flag path: the toggles below truncate and delete it,
+# either of which would reach whatever a planted link points at.
+[[ -L "$OFF_FLAG" ]] && exit 0
+
 shopt -s nocasematch
 if [[ "$INPUT" =~ (drop[[:space:]]+style|verbose[[:space:]]+mode) ]]; then
   : > "$OFF_FLAG"            # disable: create off flag, no reminder this turn

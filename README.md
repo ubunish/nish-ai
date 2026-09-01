@@ -24,6 +24,7 @@ Two diagram renderers, split by skill. `nish-ai-project-planning` and `nish-ai-w
 | `./tests/uv.sh` | Run the uv-hook test suite (no bats; needs `jq`) |
 | `./tests/agents.sh` | Run the reviewer-agent test suite (no bats; needs `jq`) |
 | `./tests/statusline.sh` | Run the statusline-badge test suite (no bats; needs `jq`) |
+| `./tests/session-id.sh` | Run the flag-path safety test suite (no bats; needs `jq`) |
 
 ## Skills
 
@@ -105,11 +106,14 @@ Graphs live in `~/.cache/codebase-memory-mcp/` (one `.db` per project, plus a sh
 
 `tests/statusline.sh` covers the statusline hook: bar fill and colour band per percent, the reset countdown (hours, minutes, past, unparseable), and the degradation guarantees — no `rate_limits` or no `jq` leaves the line as it was, with no stderr and a zero exit. Runs against a throwaway `HOME`, so the real off-flag and category flags are untouched. Needs `jq`.
 
+`tests/session-id.sh` covers the hooks that write a flag file under a path built from the payload (`coding-pretooluse.sh`, the three `recognition-*` hooks, `style-prompt-submit.sh`). A `session_id` carrying `../` is stripped to a safe segment, the marker still lands inside the directory the hook owns, nothing lands above it, and an id left empty by stripping falls back to `default`. A symlink planted at a flag path is left alone rather than followed, so a toggle cannot truncate what it points at. Runs against a throwaway `HOME` and `TMPDIR`. Needs `jq`.
+
 ```
 ./tests/run.sh
 ./tests/uv.sh
 ./tests/agents.sh
 ./tests/statusline.sh
+./tests/session-id.sh
 ```
 
 ## Repo Layout
@@ -122,7 +126,7 @@ nish-ai/
 ├── agents/                      reviewer subagents → ~/.claude/agents/
 │   ├── nish-ai-code-reviewer.md
 │   └── nish-ai-security-reviewer.md
-├── tests/                       hook + agent test suites (run.sh, uv.sh, agents.sh, statusline.sh)
+├── tests/                       hook + agent test suites (run.sh, uv.sh, agents.sh, statusline.sh, session-id.sh)
 ├── nish-ai-writing-style/      always-on prose style (+ hooks/)
 ├── nish-ai-uv/                 always-on "prefer uv" convention (+ hooks/)
 ├── nish-ai-github/             commit/branch/PR conventions (+ hooks/)

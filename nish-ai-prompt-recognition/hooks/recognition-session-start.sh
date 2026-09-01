@@ -17,7 +17,10 @@ FLAG_DIR="$HOME/.claude"
 command -v jq >/dev/null || exit 0
 
 INPUT="$(cat)"
-SID="$(printf '%s' "$INPUT" | jq -r '.session_id // "default"' 2>/dev/null || echo default)"
+# The id becomes a path segment below, so keep it to characters a segment may
+# safely hold — a "../" in the payload would otherwise escape the flag dir.
+SID="$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null | tr -cd 'A-Za-z0-9_-' || true)"
+if [[ -z "$SID" ]]; then SID=default; fi
 SOURCE="$(printf '%s' "$INPUT" | jq -r '.source // "startup"' 2>/dev/null || echo startup)"
 
 # Reap stale per-session flags before arming a new one. These accumulate in
@@ -27,9 +30,12 @@ find "$FLAG_DIR" -maxdepth 1 -type f \
   \( -name '.nish-recognition-pending-*' -o -name '.nish-ai-category-*' \) \
   -mtime +7 -delete 2>/dev/null || true
 
-# Arm the pending flag only for a new logical session.
+# Arm the pending flag only for a new logical session. Refuse a symlink at the
+# flag path: a local attacker could point it at a sensitive file and have this
+# truncating write clobber it.
+PENDING="$FLAG_DIR/.nish-recognition-pending-$SID"
 case "$SOURCE" in
-  startup|clear) : > "$FLAG_DIR/.nish-recognition-pending-$SID" ;;
+  startup|clear) [[ -L "$PENDING" ]] || : > "$PENDING" ;;
 esac
 
 # Strip YAML frontmatter (first --- ... --- block), keep the rule body.

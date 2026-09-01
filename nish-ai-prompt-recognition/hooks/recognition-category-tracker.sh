@@ -17,7 +17,10 @@ set -euo pipefail
 command -v jq >/dev/null || exit 0
 
 INPUT="$(cat)"
-SID="$(printf '%s' "$INPUT" | jq -r '.session_id // "default"' 2>/dev/null || echo default)"
+# The id becomes a path segment below, so keep it to characters a segment may
+# safely hold — a "../" in the payload would otherwise escape ~/.claude.
+SID="$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null | tr -cd 'A-Za-z0-9_-' || true)"
+if [[ -z "$SID" ]]; then SID=default; fi
 SKILL="$(printf '%s' "$INPUT" | jq -r '.tool_input.skill // empty' 2>/dev/null || true)"
 
 case "$SKILL" in

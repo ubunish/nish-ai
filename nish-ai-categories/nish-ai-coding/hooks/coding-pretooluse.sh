@@ -21,7 +21,10 @@ command -v jq >/dev/null || exit 0
 [[ -f "$HOME/.claude/.coding-off" ]] && exit 0
 
 FILE_PATH="$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // ""')"
-SESSION_ID="$(printf '%s' "$INPUT" | jq -r '.session_id // ""')"
+# The id becomes a path segment below, so keep it to characters a segment may
+# safely hold — a "../" in the payload would otherwise escape the marker dir.
+SESSION_ID="$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null \
+  | tr -cd 'A-Za-z0-9_-' || true)"
 [[ -z "$FILE_PATH" || -z "$SESSION_ID" ]] && exit 0
 
 # Source files only. Extension allowlist — prose, config, and data files do not
@@ -35,6 +38,9 @@ esac
 # Once per session. Marker name embeds the session id; stale markers from dead
 # sessions are harmless and cleaned by the OS tmp reaper.
 MARKER="${TMPDIR:-/tmp}/nish-ai-coding-anchor-${SESSION_ID}"
+# Refuse a symlink: on a shared or attacker-controlled TMPDIR the write below
+# would create or truncate whatever it points at.
+[[ -L "$MARKER" ]] && exit 0
 [[ -f "$MARKER" ]] && exit 0
 : > "$MARKER"
 

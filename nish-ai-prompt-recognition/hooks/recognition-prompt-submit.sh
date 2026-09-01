@@ -12,9 +12,16 @@ FLAG_DIR="$HOME/.claude"
 command -v jq >/dev/null || exit 0
 
 INPUT="$(cat)"
-SID="$(printf '%s' "$INPUT" | jq -r '.session_id // "default"' 2>/dev/null || echo default)"
+# The id becomes a path segment below, so keep it to characters a segment may
+# safely hold — a "../" in the payload would otherwise escape the flag dir.
+SID="$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null | tr -cd 'A-Za-z0-9_-' || true)"
+if [[ -z "$SID" ]]; then SID=default; fi
 PROMPT="$(printf '%s' "$INPUT" | jq -r '.prompt // ""' 2>/dev/null || echo "")"
 FLAG="$FLAG_DIR/.nish-recognition-pending-$SID"
+
+# Refuse a symlink at the flag path — the re-categorization write below
+# truncates whatever it points at.
+[[ -L "$FLAG" ]] && exit 0
 
 # Explicit re-categorization on demand.
 shopt -s nocasematch
