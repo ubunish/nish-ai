@@ -13,19 +13,25 @@ set -euo pipefail
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OFF_FLAG="$HOME/.claude/.nish-style-off"
 
-# Read the hook payload (JSON). Toggle phrases are literal text, so they are
-# matched against the raw payload directly — no jq needed to extract .prompt.
+# Read the hook payload (JSON) and match toggles against .prompt alone. The
+# payload also carries cwd and transcript_path, so matching it raw let a phrase
+# anywhere in the JSON flip the style off. Without jq the raw payload is still
+# the only thing to match — over-broad, but better than losing the toggle.
 INPUT="$(cat)"
+PROMPT="$INPUT"
+if command -v jq >/dev/null; then
+  PROMPT="$(printf '%s' "$INPUT" | jq -r '.prompt // ""' 2>/dev/null || printf '%s' "$INPUT")"
+fi
 
 # Refuse a symlink at the flag path: the toggles below truncate and delete it,
 # either of which would reach whatever a planted link points at.
 [[ -L "$OFF_FLAG" ]] && exit 0
 
 shopt -s nocasematch
-if [[ "$INPUT" =~ (drop[[:space:]]+style|verbose[[:space:]]+mode) ]]; then
+if [[ "$PROMPT" =~ (drop[[:space:]]+style|verbose[[:space:]]+mode) ]]; then
   : > "$OFF_FLAG"            # disable: create off flag, no reminder this turn
   exit 0
-elif [[ "$INPUT" =~ (resume[[:space:]]+style|style[[:space:]]+on|enable[[:space:]]+style) ]]; then
+elif [[ "$PROMPT" =~ (resume[[:space:]]+style|style[[:space:]]+on|enable[[:space:]]+style) ]]; then
   rm -f "$OFF_FLAG"         # re-enable
 fi
 

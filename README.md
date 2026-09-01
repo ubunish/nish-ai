@@ -25,6 +25,7 @@ Two diagram renderers, split by skill. `nish-ai-project-planning` and `nish-ai-w
 | `./tests/agents.sh` | Run the reviewer-agent test suite (no bats; needs `jq`) |
 | `./tests/statusline.sh` | Run the statusline-badge test suite (no bats; needs `jq`) |
 | `./tests/session-id.sh` | Run the flag-path safety test suite (no bats; needs `jq`) |
+| `./tests/style-toggle.sh` | Run the writing-style toggle test suite (no bats; needs `jq`) |
 
 ## Skills
 
@@ -108,12 +109,15 @@ Graphs live in `~/.cache/codebase-memory-mcp/` (one `.db` per project, plus a sh
 
 `tests/session-id.sh` covers the hooks that write a flag file under a path built from the payload (`coding-pretooluse.sh`, the three `recognition-*` hooks, `style-prompt-submit.sh`). A `session_id` carrying `../` is stripped to a safe segment, the marker still lands inside the directory the hook owns, nothing lands above it, and an id left empty by stripping falls back to `default`. A symlink planted at a flag path is left alone rather than followed, so a toggle cannot truncate what it points at. Runs against a throwaway `HOME` and `TMPDIR`. Needs `jq`.
 
+`tests/style-toggle.sh` covers the writing-style toggle: `drop style` / `verbose mode` set the off-flag, `resume style` / `style on` / `enable style` clear it, the per-turn reminder is emitted only while style is on, a phrase riding along in `cwd` or `transcript_path` does not toggle, and the raw-payload fallback still toggles when `jq` is absent. Runs against a throwaway `HOME`. Needs `jq`.
+
 ```
 ./tests/run.sh
 ./tests/uv.sh
 ./tests/agents.sh
 ./tests/statusline.sh
 ./tests/session-id.sh
+./tests/style-toggle.sh
 ```
 
 ## Repo Layout
@@ -126,7 +130,7 @@ nish-ai/
 ├── agents/                      reviewer subagents → ~/.claude/agents/
 │   ├── nish-ai-code-reviewer.md
 │   └── nish-ai-security-reviewer.md
-├── tests/                       hook + agent test suites (run.sh, uv.sh, agents.sh, statusline.sh, session-id.sh)
+├── tests/                       hook + agent test suites (run.sh, uv.sh, agents.sh, statusline.sh, session-id.sh, style-toggle.sh)
 ├── nish-ai-writing-style/      always-on prose style (+ hooks/)
 ├── nish-ai-uv/                 always-on "prefer uv" convention (+ hooks/)
 ├── nish-ai-github/             commit/branch/PR conventions (+ hooks/)
@@ -239,7 +243,7 @@ flowchart TD
 
 | Skill | Mechanism | Triggers on | Off switch |
 |-------|-----------|-------------|------------|
-| `nish-ai-writing-style` | Hooks (SessionStart + UserPromptSubmit + statusLine badge: style, category, 5h usage) | Every session + every turn | "drop style" / "verbose mode" → off-flag; "resume style" → on |
+| `nish-ai-writing-style` | Hooks (SessionStart + UserPromptSubmit + statusLine badge: style, category, 5h usage) | Every session + every turn | "drop style" / "verbose mode" → off-flag; "resume style" / "style on" / "enable style" → on |
 | `nish-ai-coding` | Explicit dispatch (goal-oriented-coding, quick-task) + PreToolUse(Edit\|Write) anchor | First source-file edit of a session; before plan execution; code-touching chores | "drop coding style" → writes `~/.claude/.coding-off` marker; anchor stands down |
 | `nish-ai-ros2` | Skill discovery | ROS2 signals: `package.xml` (ament), `rclpy`/`rclcpp`, `.msg`/`.srv`/`.action`, `launch/`/`config/` | "drop ros2" |
 | `nish-ai-github` | SessionStart anchor + PreToolUse(Bash) validator + explicit invoke | Every session; every `git commit`; commit / branch / PR boundary | validator auto-fixes or denies malformed commits, not user-toggleable |

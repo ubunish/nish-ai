@@ -90,4 +90,4 @@ Resume mode after exempt block ends.
 
 ## Persistence
 
-Active every response from invocation onward. Pick mode by surface each response — TERMINAL for chat, DOCS for committed artifacts. TERMINAL rules are unconditional: no drift over long sessions. Off only on "drop style" or "verbose mode".
+Active every response from invocation onward. Pick mode by surface each response — TERMINAL for chat, DOCS for committed artifacts. TERMINAL rules are unconditional: no drift over long sessions. Off only on "drop style" or "verbose mode"; back on with "resume style", "style on", or "enable style".
