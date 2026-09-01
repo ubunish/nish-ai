@@ -23,6 +23,7 @@ Two diagram renderers, split by skill. `nish-ai-project-planning` and `nish-ai-w
 | `./tests/run.sh` | Run the commit-hook test suite (no bats; needs `jq` + `perl`) |
 | `./tests/uv.sh` | Run the uv-hook test suite (no bats; needs `jq`) |
 | `./tests/agents.sh` | Run the reviewer-agent test suite (no bats; needs `jq`) |
+| `./tests/statusline.sh` | Run the statusline-badge test suite (no bats; needs `jq`) |
 
 ## Skills
 
@@ -102,10 +103,13 @@ Graphs live in `~/.cache/codebase-memory-mcp/` (one `.db` per project, plus a sh
 
 `tests/agents.sh` covers the reviewer agent layer: every `agents/*.md` declares valid frontmatter (name matching filename, description, `model: haiku`, read-only tools), and `install.sh` links the agents into `~/.claude/agents/`, reports them under `status`, and removes them under `uninstall`. The install cycle runs against a throwaway `HOME` with a stub `claude` on `PATH`, so it never touches the real environment or the network. Needs `jq`.
 
+`tests/statusline.sh` covers the statusline hook: bar fill and colour band per percent, the reset countdown (hours, minutes, past, unparseable), and the degradation guarantees — no `rate_limits` or no `jq` leaves the line as it was, with no stderr and a zero exit. Runs against a throwaway `HOME`, so the real off-flag and category flags are untouched. Needs `jq`.
+
 ```
 ./tests/run.sh
 ./tests/uv.sh
 ./tests/agents.sh
+./tests/statusline.sh
 ```
 
 ## Repo Layout
@@ -118,7 +122,7 @@ nish-ai/
 ├── agents/                      reviewer subagents → ~/.claude/agents/
 │   ├── nish-ai-code-reviewer.md
 │   └── nish-ai-security-reviewer.md
-├── tests/                       hook + agent test suites (run.sh, uv.sh, agents.sh)
+├── tests/                       hook + agent test suites (run.sh, uv.sh, agents.sh, statusline.sh)
 ├── nish-ai-writing-style/      always-on prose style (+ hooks/)
 ├── nish-ai-uv/                 always-on "prefer uv" convention (+ hooks/)
 ├── nish-ai-github/             commit/branch/PR conventions (+ hooks/)
@@ -167,7 +171,7 @@ flowchart LR
 | Style hooks | SessionStart injects full ruleset; UserPromptSubmit re-injects a reminder each turn |
 | Commit validator | PreToolUse(Bash) auto-rewrites a `git commit` carrying a body or `Co-Authored-By` trailer down to subject-only, preserving both a `git add … &&` prefix and a chained tail (`&& git log`, `&& git push`); denies only what it cannot safely fix (bad prefix, capitalized subject, trailing period) or cannot safely collapse (a second `git commit` in the tail, or a trailer that would survive in the tail) |
 | uv enforcement | PreToolUse(Bash) blocks a bare `python`/`pip`/`poetry`/`pipenv`/`virtualenv` call and denies it with the uv rewrite (`python app.py` → `uv run app.py`); passes through uv, conda, an active `$VIRTUAL_ENV`, and the `drop uv` bypass marker |
-| Statusline badge | Sets `.statusLine` to render the `✎ style:on`/`off` + category badge, only when no status line is set yet; a custom `.statusLine` is left untouched |
+| Statusline badge | Sets `.statusLine` to render the `✎ style:on`/`off` + category badge and the flush-right 5-hour usage badge, only when no status line is set yet; a custom `.statusLine` is left untouched |
 | Plugin install | Installs the `clangd-lsp` code-intelligence plugin via the `claude plugin` CLI (marketplace `anthropics/claude-plugins-official`), idempotent; skipped if the `claude` CLI is absent |
 | d2 install | Provisions terrastruct's d2 diagram renderer system-wide via the upstream curl-pipe installer (`https://d2lang.com/install.sh`), idempotent; skipped if `curl` is absent. Backs the `nish-ai-d2` skill and the documentation skill's diagrams |
 | Memory install | Installs the codebase-memory binary (`--skip-config`), registers it with Claude Code at user scope, and sets `auto_index=true`, idempotent; see [Memory](#memory) |
@@ -207,7 +211,7 @@ flowchart TD
     subgraph hook["hook-enforced"]
         SS["SessionStart hook<br/>inject full ruleset"]
         UP["UserPromptSubmit hook<br/>per-turn reminder + off-flag toggle"]
-        SL["statusLine hook<br/>render style:on/off badge"]
+        SL["statusLine hook<br/>render style + category + usage badge"]
         PV["PreToolUse(Bash) hook<br/>validate commit message"]
         PU["PreToolUse(Bash) hook<br/>block bare python/pip → uv"]
         PC["PreToolUse(Edit|Write) hook<br/>inject ladder + principles on first source edit"]
@@ -231,7 +235,7 @@ flowchart TD
 
 | Skill | Mechanism | Triggers on | Off switch |
 |-------|-----------|-------------|------------|
-| `nish-ai-writing-style` | Hooks (SessionStart + UserPromptSubmit + statusLine badge) | Every session + every turn | "drop style" / "verbose mode" → off-flag; "resume style" → on |
+| `nish-ai-writing-style` | Hooks (SessionStart + UserPromptSubmit + statusLine badge: style, category, 5h usage) | Every session + every turn | "drop style" / "verbose mode" → off-flag; "resume style" → on |
 | `nish-ai-coding` | Explicit dispatch (goal-oriented-coding, quick-task) + PreToolUse(Edit\|Write) anchor | First source-file edit of a session; before plan execution; code-touching chores | "drop coding style" → writes `~/.claude/.coding-off` marker; anchor stands down |
 | `nish-ai-ros2` | Skill discovery | ROS2 signals: `package.xml` (ament), `rclpy`/`rclcpp`, `.msg`/`.srv`/`.action`, `launch/`/`config/` | "drop ros2" |
 | `nish-ai-github` | SessionStart anchor + PreToolUse(Bash) validator + explicit invoke | Every session; every `git commit`; commit / branch / PR boundary | validator auto-fixes or denies malformed commits, not user-toggleable |
@@ -242,6 +246,22 @@ Beyond auto-activation, `nish-ai-ros2` folds into three category skills at their
 `nish-ai-uv` mirrors the writing-style architecture: a passive auto-active skill carries the WHY and the command mapping, a SessionStart anchor primes the mapping from message one so uv is the default reach, and an active PreToolUse(Bash) hook backstops it by blocking any bare `python`/`pip`/`poetry`/`pipenv`/`virtualenv` that slips through and returning the uv rewrite. nish-setup owns the uv binary and builds the `~/.venvs/*` environments; this skill owns Claude's behavior. "drop uv" writes `~/.claude/.uv-off`, which the hook checks first — present → no-op. Conda is never redirected.
 
 Off-flag lives at `~/.claude/.nish-style-off`. Present → both style hooks no-op. Toggled by phrase, persists across turns. The `statusLine` hook (`style-statusline.sh`) reads the same flag and renders a `✎ style:on` / `✎ style:off` badge so the active state is visible. `install.sh` wires it into the `statusLine` setting, but only when no status line is set yet — a custom `.statusLine` is left untouched.
+
+#### Statusline
+
+One line, three groups. Style and category sit left; the 5-hour rate-limit usage sits flush right:
+
+```
+▪ nish-ai  ·  ✎ style:on  ·  ▸ coding            ▰▰▱▱▱ 42% · 1h12m
+```
+
+| Group | Source | Notes |
+|-------|--------|-------|
+| `▪ <dir>  ✎ style:on/off` | `~/.claude/.nish-style-off` | Off-flag present → `style:off`, in red |
+| `▸ <category>` | `~/.claude/.nish-ai-category-<session>` | Written by the router; contents whitelisted before rendering |
+| `▰▰▱▱▱ 42% · 1h12m` | `rate_limits.five_hour` on the hook's stdin JSON | 5-cell bar, integer percent, countdown to the window reset |
+
+The usage badge colours by threshold: under 50% mint, 50–79% amber, 80% and up red. It adds no dependency — Claude Code passes the numbers on the same stdin JSON the hook already parses with `jq`. Without `rate_limits` (API-key auth) or without `jq`, the badge is omitted and the line renders exactly as before. The countdown is dropped when the reset time is past or unparseable. Right-alignment uses the terminal width; when the line will not fit, the badge is appended after a separator instead of padded.
 
 #### Writing-Style Modes
 
