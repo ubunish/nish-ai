@@ -29,7 +29,7 @@ grill user → draft plan + diagram → user iterates → user approves → writ
 6. Write to `plans/YYYY-MM-DD-PLAN.md`
 7. Render the diagram to `plans/YYYY-MM-DD-PLAN.png` with `mmdc` (skip if `mmdc` is absent)
 8. If plan is complex (>7 steps OR has parallel branches), also write `plans/YYYY-MM-DD-PLAN.html` with the diagram as inline SVG via `mmdc`
-9. Add `plans/` to `.gitignore` if not already present. If this changed `.gitignore`, commit that one file with `chore: ignore plans directory` (local only — user pushes). Do NOT commit the plan files; they stay ignored.
+9. Add `plans/` to `.gitignore` if not already present. If this changed `.gitignore`, commit that one file with `chore: ignore plans directory` and push it. Do NOT commit the plan files; they stay ignored.
 10. Stop. Do NOT execute the plan.
 
 ## Grilling Rules

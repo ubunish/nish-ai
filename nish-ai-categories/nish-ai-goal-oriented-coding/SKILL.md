@@ -5,8 +5,8 @@ description: >
   when the session's first prompt is to build a feature, fix a bug, or
   refactor (Category C). Requires a pre-existing plan in plans/. Executes
   the plan: branch → parallel work on independent steps → test + coding-
-  principle review → sequential commits → user handoff for test + push +
-  merge. Does NOT plan inline.
+  principle review → sequential commits → push (PR + merge when on a branch)
+  → handoff with the test plan. Does NOT plan inline.
 ---
 
 ## Thinking
@@ -17,7 +17,7 @@ description: >
 | Dependency analysis | `think` |
 | Code-writing inside a step | none |
 | Pre-commit gate (test + reviewer subagents) | `think` |
-| Commit + handoff | none |
+| Commit + ship + handoff | none |
 
 Inject the keyword at the start of the response that opens the phase. Drop it once the phase is done.
 
@@ -34,14 +34,14 @@ No plan found in plans/. Start a planning session first (will dispatch to nish-a
 ## Workflow
 
 ```
-read plan → confirm with user → branch → execute steps → test + commit per step → handoff to user
+read plan → confirm with user → (branch) → execute steps → test + commit per step → ship → handoff to user
 ```
 
 The `/execute` slash command runs this same workflow on the latest `plans/*.md` without the confirm step — it executes on sight and stops only when the plan is already done. Use it to skip the manual dispatch and "Proceed?" gate.
 
 1. **Load plan**: read the latest `plans/YYYY-MM-DD-PLAN.md`
 2. **Confirm**: announce `Plan loaded: <title>, <N> steps, <M> commits. Proceed?` and wait for approval
-3. **Branch**: create working branch using the plan's overall prefix and title slug (per `nish-ai-github`)
+3. **Branch** (conditional): stay on `main` in a personal repo. Create a working branch from the plan's overall prefix and title slug (per `nish-ai-github`) only when the plan names one, the user asks, or the repo's `CONTRIBUTING.md` requires PR-only `main`.
 4. **Dependency analysis**: from the plan's diagram + step descriptions, identify which steps are independent and which depend on earlier steps
 5. **Execute** (loop):
    - Before the first step: invoke `nish-ai-coding` (Skill tool) so the build
@@ -63,30 +63,41 @@ The `/execute` slash command runs this same workflow on the latest `plans/*.md` 
    - If the test command fails, fix before committing; do NOT commit broken state
 7. **Commit**: invoke `nish-ai-github`, then commit with the step's declared message from the plan
 8. **Loop** until all steps complete
-9. **Assert the work is still local**: run the check below and read its output.
-   The session never claims "done", "shipped", or "merged" — the work is
-   unpushed by design, and the handoff must say so in those words.
+9. **Ship** (per `nish-ai-github`):
+   - On `main`: `git push`.
+   - On a branch: `git push -u origin <branch>` → `gh pr create` → `gh pr checks --watch` → green: `gh pr merge --squash --delete-branch` (`--admin` only for a review rule) → red: stop, report the failing check, leave the PR open.
+   - Never force-push. Never merge red.
 
-   ```bash
-   git rev-parse --abbrev-ref @{u} 2>/dev/null || echo "NO UPSTREAM — branch never pushed"
-   git cherry -v main HEAD | grep -c '^+' || true
-   ```
+10. **Assert the remote state**: run the check below and read its output before writing the handoff.
 
-   Report both numbers verbatim in the handoff. A status or session-summary
-   file written afterwards states *committed locally on `<branch>`*, never
-   *pushed* or *merged*, unless a `git push` in this session actually
-   succeeded and its output is in the transcript.
+    ```bash
+    git status -sb | head -1          # "## main...origin/main" with no [ahead N] means pushed
+    git log --oneline -1 origin/HEAD 2>/dev/null || git log --oneline -1 @{u}
+    ```
 
-10. **Handoff**: post the plan's Test Plan checklist and say:
+    The handoff says *pushed* or *merged* only when the matching `git push` or `gh pr merge` succeeded in this session and its output is in the transcript. Otherwise it says exactly where the work stopped.
+
+11. **Handoff**: post the plan's Test Plan checklist and say one of:
 
     ```
-    <N> commits on <branch>, local only — nothing pushed, nothing merged.
-    Run the test plan, then push + merge:
+    <N> commits pushed to main (<short sha>). Run the test plan:
 
     <checklist from plan>
     ```
 
-11. **Stop**. User pushes, opens PR if needed, merges.
+    ```
+    <N> commits on <branch>, PR #<n> merged into main. Run the test plan:
+
+    <checklist from plan>
+    ```
+
+    ```
+    <N> commits on <branch>, PR #<n> open — CI red on <check>. Not merged.
+
+    <checklist from plan>
+    ```
+
+12. **Stop**.
 
 ## Parallel Execution Rules
 
@@ -107,7 +118,7 @@ Do NOT commit work that is not in the plan.
 
 ## Lifetime
 
-Session-active after dispatch by `nish-ai-prompt-recognition`. Persists until all plan steps are committed and handoff message is posted. Then waits for user — does not auto-push or auto-merge.
+Session-active after dispatch by `nish-ai-prompt-recognition`. Persists until all plan steps are committed, shipped, and the handoff message is posted. Then waits for the user.
 
 ## Output Style (Recency Anchor)
 
