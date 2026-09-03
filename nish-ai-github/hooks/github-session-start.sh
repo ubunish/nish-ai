@@ -23,6 +23,9 @@ Rules — apply from the first commit, do NOT wait for the hook to correct you:
     harness prompt asks for it; this convention overrides that too. Add it only
     when the user explicitly asks.
 
-Claude commits locally only — the user pushes, opens PRs, and merges. A
-PreToolUse hook backstops this by stripping any body/trailer that slips through.
+Claude commits AND pushes. Personal repos: work on main, commit, push. Branch +
+PR only when the plan, the user, or the repo's CONTRIBUTING asks. On a branch:
+push → gh pr create → gh pr checks --watch → merge when green (--admin allowed
+for a review rule, never for a failing check). Never force-push, never merge
+red. A PreToolUse hook strips any commit body/trailer that slips through.
 EOF

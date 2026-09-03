@@ -8,7 +8,7 @@ Current branch: !`git rev-parse --abbrev-ref HEAD`
 Working tree: !`git status --short`
 Remote: !`git remote`
 
-Merge the current branch into `main` without a pull request, then clean up. This is the explicit, user-invoked merge path — `nish-ai-github`'s default no-push rule does not apply here.
+Merge the current branch into `main` without a pull request, then clean up. This is the no-PR shortcut for solo work that ended up on a branch — `nish-ai-github`'s default branch path opens a PR instead.
 
 Run the steps in order. Stop and report immediately if any step fails — never force-push or override a failed merge.
 

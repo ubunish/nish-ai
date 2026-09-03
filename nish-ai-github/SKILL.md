@@ -4,7 +4,10 @@ description: >
   Nish's git conventions: commit format, branch naming, PR structure, and
   the planned-commit workflow. Use whenever creating commits, branches, or
   pull requests. Commits are pre-planned and user-approved before execution.
-  Claude commits locally only — user pushes, opens PRs, and merges.
+  Claude commits and pushes. Personal repos work straight on main; a branch
+  and PR are used only when the plan or the user asks for one. Claude merges
+  its own PRs once CI is green, with admin bypass when a review rule is the
+  only thing in the way.
 ---
 
 ## Format
@@ -40,27 +43,36 @@ Not:
 
 ## Workflow
 
-Commits are planned, not improvised. Claude stops at the local commit.
+Commits are planned, not improvised. Claude carries the work through to the remote.
 
 ```
-plan drafted → commits listed in plan → user approves → Claude branches + commits → user pushes, opens PR, merges
+plan drafted → commits listed in plan → user approves → Claude commits → Claude pushes
+                                                                      └→ (branch) PR → CI green → merge
 ```
 
 Claude does:
-- Create branch
 - Commit at planned boundaries with planned messages
+- Push after the last planned commit (and after any commit the user asks to ship)
+- On a branch: open the PR, wait for checks, merge, delete the branch
 - Pause and update the plan if scope shifts mid-execution
 
 Claude does NOT (unless explicitly asked):
-- Push to remote
-- Open pull requests
-- Merge branches
+- Force-push, or rewrite history that is already on the remote
+- Merge on red or pending CI
+- Push work that is outside the plan
+
+Admin bypass (`gh pr merge --admin`) is allowed when a required-review rule is
+the only blocker — solo repos have no second reviewer. It is never used to get
+past a failing check.
 
 ## Branches
 
-`main` — canonical, finished, merged.
+`main` — canonical, finished, merged. Personal repos work directly on `main`:
+no branch, no PR, commit then push.
 
-Working branches: `prefix/short-phrase` using the same prefix set.
+A working branch is created only when the plan names one, the user asks, or
+the repo's own `CONTRIBUTING.md` requires PR-only `main` (First Motive repos
+do). Working branches: `prefix/short-phrase` using the same prefix set.
 
 Examples:
 - `feat/add-search-bar`
@@ -75,7 +87,15 @@ Rules:
 
 ## Pull Requests
 
-Used when Claude is explicitly asked to draft or open a PR. Default flow is user-driven.
+Used whenever work sits on a branch. Claude opens the PR, watches checks, and merges.
+
+```
+git push -u origin <branch>
+  → gh pr create --title "<prefix: short phrase>" --body-file <body>
+  → gh pr checks --watch
+  → green: gh pr merge --squash --delete-branch (add --admin only for a review rule)
+  → red:   stop, report the failing check, do not merge
+```
 
 Title: same format as a commit. `prefix: short phrase`.
 
@@ -100,9 +120,7 @@ Rules:
 
 ## Direct Merge (`/merge`)
 
-The default flow stops at the local commit — Claude does not push or merge. The `/merge` command is the explicit, user-invoked exception: it merges the current branch straight into `main` without a pull request and cleans up.
-
-Use it for solo, low-risk work where a PR adds no value. For anything reviewed or shared, open a PR instead.
+The `/merge` command merges the current branch straight into `main` without a pull request and cleans up. Use it for solo, low-risk work that ended up on a branch anyway. For anything reviewed or shared, open a PR instead.
 
 ```
 current branch
