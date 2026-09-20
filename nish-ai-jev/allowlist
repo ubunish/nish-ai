@@ -1,0 +1,5 @@
+# Repos whose state may be sent to Jev. One glob per line, matched against the
+# repo's git origin after the scheme, any credentials and the .git suffix are
+# stripped and the rest is lowercased. An origin matching nothing here — and a
+# repo with no origin at all — never reaches the API.
+github.com/ubunish/*

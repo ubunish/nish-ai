@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+# jev — one typed judgment from TypeSafe System One, for hooks and gates.
+#
+# Reads the state to judge on stdin, takes a question file as its argument, and
+# prints the response's `answers` object on stdout. Every failure path — an
+# off-allowlist repo, a missing key, a timeout, an API error, a malformed
+# response — exits non-zero with nothing on stdout, so a caller can fall back
+# to the behaviour it had before Jev existed.
+#
+#   printf '%s' "$prompt" | jev --timeout 1.5 route.json
+#
+# Stdin holding a JSON object or array is sent as structured state; anything
+# else is sent as a string.
+#
+# Env:
+#   TYPESAFE_API_KEY  required. Never stored in this repo or in settings.json.
+#   JEV_ENDPOINT      API URL override; the tests point it at a local stub.
+set -euo pipefail
+
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+ALLOWLIST="$SELF_DIR/allowlist"
+ENDPOINT="${JEV_ENDPOINT:-https://api.typesafe.ai/v1/systemone}"
+MODEL="jev-latest"
+TIMEOUT=5
+QUESTIONS=""
+
+die() { printf 'jev: %s\n' "$1" >&2; exit 1; }
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --timeout)   TIMEOUT="${2:-}"; shift 2 ;;
+    --timeout=*) TIMEOUT="${1#*=}"; shift ;;
+    -*)          die "unknown flag: $1" ;;
+    *)           QUESTIONS="$1"; shift ;;
+  esac
+done
+
+[[ -n "$QUESTIONS" ]] || die "usage: jev [--timeout SECS] QUESTION_FILE"
+[[ -r "$QUESTIONS" ]] || die "question file not readable: $QUESTIONS"
+command -v curl >/dev/null || die "curl not found"
+command -v jq   >/dev/null || die "jq not found"
+jq -e 'type == "object"' "$QUESTIONS" >/dev/null 2>&1 || die "question file is not a JSON object"
+
+# --- data boundary ----------------------------------------------------------
+# The allowlist is matched against the repo's origin, not against the caller.
+# Enforcing it here means every caller inherits it and none can opt out.
+ORIGIN="$(git remote get-url origin 2>/dev/null || true)"
+[[ -n "$ORIGIN" ]] || die "no git origin; refusing to send state"
+
+NORM="${ORIGIN%.git}"
+NORM="${NORM#*://}"   # https://host/org/repo -> host/org/repo
+NORM="${NORM#*@}"     # git@host:org/repo     -> host:org/repo
+NORM="${NORM/://}"    # host:org/repo         -> host/org/repo
+NORM="${NORM%/}"
+NORM="$(printf '%s' "$NORM" | tr '[:upper:]' '[:lower:]')"
+
+[[ -r "$ALLOWLIST" ]] || die "allowlist not readable: $ALLOWLIST"
+allowed=0
+while IFS= read -r pattern || [[ -n "$pattern" ]]; do
+  pattern="${pattern%%#*}"
+  pattern="$(printf '%s' "$pattern" | tr -d '[:space:]')"
+  [[ -n "$pattern" ]] || continue
+  # shellcheck disable=SC2053  # the pattern is a glob on purpose
+  if [[ "$NORM" == $pattern ]]; then allowed=1; break; fi
+done < "$ALLOWLIST"
+[[ "$allowed" -eq 1 ]] || die "origin not on the allowlist: $NORM"
+
+# --- credentials ------------------------------------------------------------
+KEY="${TYPESAFE_API_KEY:-}"
+[[ -n "$KEY" ]] || die "TYPESAFE_API_KEY is not set"
+# The key goes into a curl config file below, where a quote or a backslash
+# would end the string and let the rest of the value become another directive.
+[[ "$KEY" =~ ^[A-Za-z0-9._-]+$ ]] || die "TYPESAFE_API_KEY has unexpected characters"
+
+# --- request ----------------------------------------------------------------
+STATE="$(cat)"
+WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT
+
+if STRUCTURED="$(printf '%s' "$STATE" | jq -ce 'select(type == "object" or type == "array")' 2>/dev/null)" \
+   && [[ -n "$STRUCTURED" ]]; then
+  jq -n --argjson s "$STRUCTURED" --arg m "$MODEL" --slurpfile q "$QUESTIONS" \
+    '{state: $s, model: $m, questions: $q[0]}' > "$WORK/body.json"
+else
+  jq -n --arg s "$STATE" --arg m "$MODEL" --slurpfile q "$QUESTIONS" \
+    '{state: $s, model: $m, questions: $q[0]}' > "$WORK/body.json"
+fi
+
+# Both the key and the request body stay out of the argument list: the key
+# because every process on the box can read argv, the body because a staged
+# diff can be larger than the argument limit.
+printf 'header = "Authorization: Bearer %s"\n' "$KEY" > "$WORK/curl.conf"
+
+RESPONSE="$(curl -sS --fail --max-time "$TIMEOUT" \
+  --config "$WORK/curl.conf" \
+  -H 'Content-Type: application/json' \
+  --data-binary "@$WORK/body.json" \
+  "$ENDPOINT" 2>/dev/null)" || die "request failed"
+
+printf '%s' "$RESPONSE" | jq -e '.answers' 2>/dev/null || die "response carried no answers"
