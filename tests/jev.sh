@@ -4,8 +4,9 @@
 #
 # Covers nish-ai-jev/jev: the origin allowlist, the fail-open exits (no key, no
 # origin, timeout, HTTP error, malformed question file), and the request shape
-# for string and structured state. Every request goes to a local stub, so the
-# suite never touches the network and never spends an API call.
+# for string and structured state. Also covers nish-ai-jev/replay, against a
+# synthetic transcript in a throwaway HOME. Every request goes to a local stub,
+# so the suite never touches the network and never spends an API call.
 #
 # Run: ./tests/jev.sh   (exits non-zero if any assertion fails)
 set -uo pipefail
@@ -137,6 +138,27 @@ run_jev "$ALLOWED_REPO" '{"command":"rm -rf x","branch":"main"}' >/dev/null
 last_body | jq -e '.state.command == "rm -rf x"' >/dev/null 2>&1 \
   && ok "structured state sent as an object" \
   || bad "structured state sent as an object" "body was [$(last_body)]"
+
+echo "replay"
+# A synthetic transcript in a throwaway ~/.claude/projects: one session whose
+# first prompt is free text and whose first category Skill call is the label.
+# The session's cwd is the allowlisted repo, so jev answers from the stub.
+REPLAY_HOME="$SANDBOX/replay-home"
+mkdir -p "$REPLAY_HOME/.claude/projects/sample"
+{
+  jq -nc --arg cwd "$ALLOWED_REPO" '{type:"user", cwd:$cwd, message:{content:"build the widget"}}'
+  jq -nc --arg cwd "$ALLOWED_REPO" \
+    '{type:"assistant", cwd:$cwd, message:{content:[{type:"tool_use", name:"Skill", input:{skill:"nish-ai-goal-oriented-coding"}}]}}'
+} > "$REPLAY_HOME/.claude/projects/sample/session.jsonl"
+
+REPLAY_OUT="$(HOME="$REPLAY_HOME" JEV_ENDPOINT="$STUB_URL" TYPESAFE_API_KEY=test-key-123 \
+  bash "$REPO_DIR/nish-ai-jev/replay" "$QUESTIONS" 2>&1)"
+printf '%s' "$REPLAY_OUT" | grep -q 'answered: 1' \
+  && ok "replay scores a session from a transcript" \
+  || bad "replay scores a session from a transcript" "output was [$REPLAY_OUT]"
+printf '%s' "$REPLAY_OUT" | grep -q 'latency  p50=' \
+  && ok "replay reports latency percentiles" \
+  || bad "replay reports latency percentiles" "output was [$REPLAY_OUT]"
 
 echo
 echo "passed: $PASS  failed: $FAIL"

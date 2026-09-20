@@ -15,7 +15,17 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 LOG_PATH = sys.argv[1]
 ANSWER = {
     "model": "jev-stub",
-    "answers": {"ok": {"type": "noul", "noul": 0.9}},
+    "answers": {
+        "ok": {"type": "noul", "noul": 0.9},
+        # A canned Choice, so a caller that ranks or routes has something with
+        # a distribution and a confidence to read.
+        "category": {
+            "type": "choice",
+            "choice": "C",
+            "probabilities": {"A": 0.05, "B": 0.05, "C": 0.8, "D": 0.05, "E": 0.05},
+            "confidence": 0.8,
+        },
+    },
     "usage": {"input_tokens": 1, "output_tokens": 1},
 }
 
