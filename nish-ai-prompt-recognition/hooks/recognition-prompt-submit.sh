@@ -5,10 +5,21 @@
 # prompt lands — freshest position, so it is not buried by other injected
 # context. Subsequent prompts are silent (router fires once per session).
 #
+# Jev settles the category before the directive is written, so the first turn
+# spends no reasoning on a decision one request already made. Every failure
+# path leaves the directive exactly as it was before Jev existed.
+#
 # "re-categorize" in a prompt re-arms the flag on demand.
 set -euo pipefail
 
 FLAG_DIR="$HOME/.claude"
+JEV="$HOME/.claude/skills/nish-ai-jev/jev"
+ROUTE_QUESTIONS="$HOME/.claude/skills/nish-ai-prompt-recognition/jev/route.json"
+# Replay-tuned: below this the distribution is spread enough that naming two
+# candidates beats naming one. See the threshold table in the project README.
+ROUTE_CONFIDENCE=0.75
+ROUTE_TIMEOUT=2
+
 command -v jq >/dev/null || exit 0
 
 INPUT="$(cat)"
@@ -28,11 +39,49 @@ shopt -s nocasematch
 if [[ "$PROMPT" =~ re-?categori[sz]e ]]; then
   : > "$FLAG"
 fi
+shopt -u nocasematch
 
 [[ -f "$FLAG" ]] || exit 0   # not the first prompt (or already dispatched) -> silent
 rm -f "$FLAG"                # consume: fire exactly once
 
+# The five tracks, in the order the router names them.
+category_name() { # $1 = A..E -> "<name> → <skill>"
+  case "$1" in
+    A) echo "Project Planning → nish-ai-project-planning" ;;
+    B) echo "User Question → nish-ai-user-question" ;;
+    C) echo "Goal-Oriented Coding → nish-ai-goal-oriented-coding" ;;
+    D) echo "Documentation → nish-ai-documentation" ;;
+    E) echo "Quick Task → nish-ai-quick-task" ;;
+    *) echo "" ;;
+  esac
+}
+
 CTX="SESSION ROUTER — DISPATCH NOW (nish-ai-prompt-recognition). This is the first substantive prompt of the session. Before any other output, explanation, or tool call: categorize it as one of A (Project Planning, no commit) / B (User Question, no commit) / C (Goal-Oriented Coding: feat|fix|refactor) / D (Documentation: docs) / E (Quick Task: chore). Pick the narrowest fit. Announce one line — 'Session category: <name> → invoking <skill>' — then invoke that skill, which owns the rest of the session. If two categories tie, ask before dispatching."
+
+if [[ -x "$JEV" && -r "$ROUTE_QUESTIONS" ]]; then
+  ANSWERS="$(printf '%s' "$PROMPT" | "$JEV" --timeout "$ROUTE_TIMEOUT" "$ROUTE_QUESTIONS" 2>/dev/null)" || ANSWERS=""
+  if [[ -n "$ANSWERS" ]]; then
+    # A prompt that is only pasted material carries no intent to route on, so
+    # the judgment is dropped and the model is left to read it in context.
+    read -r MODE TOP SECOND CONFIDENCE <<<"$(printf '%s' "$ANSWERS" | jq -r --argjson thr "$ROUTE_CONFIDENCE" '
+      (.category.probabilities // {} | to_entries | sort_by(-.value)) as $ranked
+      | (.category.confidence // 0) as $conf
+      | (if (.pasted_only.noul // 0) >= 0.5 then "none"
+         elif $conf >= $thr then "settled"
+         else "narrowed" end) as $mode
+      | "\($mode) \(.category.choice // "") \($ranked[1].key // "") \($conf)"
+    ' 2>/dev/null || echo "none   0")"
+
+    TOP_NAME="$(category_name "$TOP")"
+    SECOND_NAME="$(category_name "$SECOND")"
+
+    if [[ "$MODE" == "settled" && -n "$TOP_NAME" ]]; then
+      CTX="SESSION ROUTER — DISPATCH NOW (nish-ai-prompt-recognition). A Jev judgment has already categorized this first prompt as $TOP: $TOP_NAME (confidence $CONFIDENCE). Before any other output, explanation, or tool call: announce one line — 'Session category: ${TOP_NAME%% →*} → invoking ${TOP_NAME##*→ }' — then invoke that skill, which owns the rest of the session. Take the category as settled unless the prompt plainly contradicts it; if it does, categorize it yourself across A (Project Planning) / B (User Question) / C (Goal-Oriented Coding) / D (Documentation) / E (Quick Task) and say why you overrode it."
+    elif [[ "$MODE" == "narrowed" && -n "$TOP_NAME" && -n "$SECOND_NAME" ]]; then
+      CTX="SESSION ROUTER — DISPATCH NOW (nish-ai-prompt-recognition). A Jev judgment narrowed this first prompt to two tracks and was not confident between them (confidence $CONFIDENCE): $TOP: $TOP_NAME, or $SECOND: $SECOND_NAME. Before any other output, explanation, or tool call: pick the narrower of those two, announce one line — 'Session category: <name> → invoking <skill>' — then invoke that skill, which owns the rest of the session. If neither fits, categorize across all five (A Project Planning / B User Question / C Goal-Oriented Coding / D Documentation / E Quick Task). If the two genuinely tie, ask before dispatching."
+    fi
+  fi
+fi
 
 jq -n --arg ctx "$CTX" \
   '{hookSpecificOutput:{hookEventName:"UserPromptSubmit",additionalContext:$ctx}}'

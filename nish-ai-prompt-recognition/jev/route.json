@@ -1,0 +1,21 @@
+{
+  "category": {
+    "type": "choice",
+    "instructions": "The state is the first prompt of a coding session with an AI assistant. Which of these five tracks should the session run on? Choose by the kind of work the prompt asks for, not by the tone it is written in. Prefer the narrowest track that fits.",
+    "criteria": {
+      "A": "Draft a plan. The prompt asks for a design, an approach, a breakdown of work, or a decision to be thought through before anything is built. Nothing is written except the plan itself.",
+      "B": "Answer a question. The prompt asks what something is, how something works, which option is better, or why something behaves as it does. No file is expected to change.",
+      "C": "Build, fix, or restructure code. The prompt asks for a feature, a bug fix, a refactor, or any other change to how the software behaves.",
+      "D": "Write or restructure documentation. The prompt asks for a README, a guide, an architecture note, a comment pass, or any other prose that ships with the code.",
+      "E": "A small piece of housekeeping. The prompt asks for a dependency bump, a file move, a rename, a config or ignore-file edit, or a one-off command — mechanical work with no design in it."
+    }
+  },
+  "pasted_only": {
+    "type": "noul",
+    "instructions": "Is the state only pasted material, with no request in it?",
+    "criteria": {
+      "true": "A log, a stack trace, command output, a file's contents, a link, or an error message, pasted with nothing asked of the assistant.",
+      "false": "The state contains a request, a question, or an instruction, even a terse one, and even when pasted material surrounds it."
+    }
+  }
+}
