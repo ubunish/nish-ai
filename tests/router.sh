@@ -5,8 +5,8 @@
 # Covers recognition-prompt-submit.sh: a confident judgment settles the
 # category, a spread one names two, a prompt that is only pasted material is
 # left to the model, and every failure path emits the directive the hook
-# emitted before Jev existed. Requests go to the local stub, so the suite never
-# touches the network.
+# emitted before Jev existed. Also covers the drift read on later prompts.
+# Requests go to the local stub, so the suite never touches the network.
 #
 # Run: ./tests/router.sh   (exits non-zero if any assertion fails)
 set -uo pipefail
@@ -63,6 +63,7 @@ route() { # $1 = prompt  $2 = endpoint path suffix  $3.. = env options (before a
       bash "$HOOK" 2>/dev/null \
     | jq -r '.hookSpecificOutput.additionalContext // ""'
 }
+requests() { wc -l < "$STUB_LOG" | tr -d ' '; }
 assert_contains() { # $1 = label  $2 = needle  $3 = haystack
   case "$3" in
     *"$2"*) ok "$1" ;;
@@ -98,6 +99,39 @@ OUT="$(jq -nc '{session_id:"bare", prompt:"fix the failing login test"}' \
   | env HOME="$BARE_HOME" TYPESAFE_API_KEY=test-key-123 bash "$HOOK" 2>/dev/null \
   | jq -r '.hookSpecificOutput.additionalContext // ""')"
 assert_contains "uninstalled jev falls back" "categorize it as one of A" "$OUT"
+
+echo "drift"
+# Drift reads the category the tracker recorded, so a later prompt is judged
+# against the track the session is actually on.
+drift() { # $1 = prompt  $2 = endpoint path suffix  $3 = category label ("" = no flag)
+  local prompt="$1" suffix="$2" category="$3"
+  rm -f "$FAKE_HOME/.claude/.nish-recognition-pending-drift" \
+        "$FAKE_HOME/.claude/.nish-ai-category-drift"
+  [[ -n "$category" ]] && printf '%s' "$category" > "$FAKE_HOME/.claude/.nish-ai-category-drift"
+  jq -nc --arg p "$prompt" '{session_id:"drift", prompt:$p}' \
+    | env HOME="$FAKE_HOME" JEV_ENDPOINT="http://127.0.0.1:$PORT$suffix" \
+          TYPESAFE_API_KEY=test-key-123 bash "$HOOK" 2>/dev/null \
+    | jq -r '.hookSpecificOutput.additionalContext // ""'
+}
+
+OUT="$(drift "now write the README for all of this" /v1/systemone coding)"
+assert_contains "shift is announced"      "SESSION DIRECTION SHIFTED" "$OUT"
+assert_contains "names the current track" "(coding)"                  "$OUT"
+
+OUT="$(drift "now fix the off-by-one in that loop" /steady coding)"
+[[ -z "$OUT" ]] && ok "a follow-on prompt is silent" || bad "a follow-on prompt is silent" "got [$OUT]"
+
+before="$(requests)"
+OUT="$(drift "go on" /v1/systemone coding)"
+[[ -z "$OUT" ]] && ok "a short prompt is silent" || bad "a short prompt is silent" "got [$OUT]"
+[[ "$(requests)" == "$before" ]] && ok "a short prompt spends no request" \
+  || bad "a short prompt spends no request" "stub logged $(( $(requests) - before )) request(s)"
+
+OUT="$(drift "now write the README for all of this" /v1/systemone "")"
+[[ -z "$OUT" ]] && ok "no category flag is silent" || bad "no category flag is silent" "got [$OUT]"
+
+OUT="$(drift "now write the README for all of this" /fail coding)"
+[[ -z "$OUT" ]] && ok "api error is silent" || bad "api error is silent" "got [$OUT]"
 
 echo "fires once"
 : > "$FAKE_HOME/.claude/.nish-recognition-pending-once"

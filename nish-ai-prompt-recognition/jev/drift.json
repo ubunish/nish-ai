@@ -1,0 +1,19 @@
+{
+  "drifted": {
+    "type": "noul",
+    "instructions": {
+      "question": "The session was dispatched to the track named in `category` and has been running on it. Does `prompt` ask for work that belongs to a different track?",
+      "tracks": {
+        "planning": "Designing an approach or breaking down work before anything is built.",
+        "question": "Answering a question, with no file expected to change.",
+        "coding": "Building a feature, fixing a bug, or restructuring code.",
+        "docs": "Writing or restructuring documentation.",
+        "chore": "Mechanical housekeeping — a bump, a move, a rename, a config edit."
+      }
+    },
+    "criteria": {
+      "true": "The prompt asks for work the current track does not cover, and continuing on this track would be the wrong shape of work.",
+      "false": "The prompt continues the current track — a follow-up, a correction, a clarification, a next step, or an ordinary question about the work in progress."
+    }
+  }
+}

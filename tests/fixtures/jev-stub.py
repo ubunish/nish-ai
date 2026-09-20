@@ -20,6 +20,7 @@ LOG_PATH = sys.argv[1]
 
 ANSWERS = {
     "ok": {"type": "noul", "noul": 0.9},
+    "drifted": {"type": "noul", "noul": 0.9},
     "risky": {"type": "noul", "noul": 0.9},
     "pasted_only": {"type": "noul", "noul": 0.05},
     "category": {
@@ -40,6 +41,7 @@ VARIANTS = {
         }
     },
     "/pasted": {"pasted_only": {"noul": 0.95}},
+    "/steady": {"drifted": {"noul": 0.05}},
 }
 
 

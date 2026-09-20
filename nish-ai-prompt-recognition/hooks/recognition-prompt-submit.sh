@@ -9,6 +9,9 @@
 # spends no reasoning on a decision one request already made. Every failure
 # path leaves the directive exactly as it was before Jev existed.
 #
+# Every later prompt gets a drift read instead: one noul asking whether it has
+# turned into work the session's track does not cover.
+#
 # "re-categorize" in a prompt re-arms the flag on demand.
 set -euo pipefail
 
@@ -19,6 +22,14 @@ ROUTE_QUESTIONS="$HOME/.claude/skills/nish-ai-prompt-recognition/jev/route.json"
 # candidates beats naming one. See the threshold table in the project README.
 ROUTE_CONFIDENCE=0.75
 ROUTE_TIMEOUT=2
+DRIFT_QUESTIONS="$HOME/.claude/skills/nish-ai-prompt-recognition/jev/drift.json"
+# A session that pivots is rarer than one that follows on, and a false alarm
+# interrupts real work — so the drift read has to be well past even.
+DRIFT_THRESHOLD=0.7
+DRIFT_TIMEOUT=1
+# Under this, a prompt is an acknowledgement or a nudge ("yes", "go on", "ship
+# it"), never a change of direction worth a request.
+DRIFT_MIN_CHARS=20
 
 command -v jq >/dev/null || exit 0
 
@@ -41,8 +52,34 @@ if [[ "$PROMPT" =~ re-?categori[sz]e ]]; then
 fi
 shopt -u nocasematch
 
-[[ -f "$FLAG" ]] || exit 0   # not the first prompt (or already dispatched) -> silent
-rm -f "$FLAG"                # consume: fire exactly once
+# Every prompt after dispatch gets a drift read instead. The router fires once,
+# but a session can turn into work its category does not cover, and the turn
+# where that happens is the only cheap place to say so.
+drift_check() {
+  [[ "${#PROMPT}" -ge "$DRIFT_MIN_CHARS" ]] || return 0
+  [[ -x "$JEV" && -r "$DRIFT_QUESTIONS" ]] || return 0
+
+  local category_flag="$FLAG_DIR/.nish-ai-category-$SID"
+  [[ -f "$category_flag" && ! -L "$category_flag" ]] || return 0
+  local category; category="$(cat "$category_flag" 2>/dev/null)" || return 0
+  [[ -n "$category" ]] || return 0
+
+  local state answers drifted
+  state="$(jq -nc --arg c "$category" --arg p "$PROMPT" '{category: $c, prompt: $p}' 2>/dev/null)" || return 0
+  answers="$(printf '%s' "$state" | "$JEV" --timeout "$DRIFT_TIMEOUT" "$DRIFT_QUESTIONS" 2>/dev/null)" || return 0
+  drifted="$(printf '%s' "$answers" | jq -r --argjson t "$DRIFT_THRESHOLD" \
+    '(.drifted.noul // 0) >= $t' 2>/dev/null)" || return 0
+  [[ "$drifted" == "true" ]] || return 0
+
+  jq -n --arg ctx "SESSION DIRECTION SHIFTED (nish-ai-prompt-recognition). This prompt asks for work the session's current track ($category) does not cover. Say so in one line and ask whether to re-categorize before continuing. Do not switch tracks silently." \
+    '{hookSpecificOutput:{hookEventName:"UserPromptSubmit",additionalContext:$ctx}}'
+}
+
+if [[ ! -f "$FLAG" ]]; then   # not the first prompt (or already dispatched)
+  drift_check
+  exit 0
+fi
+rm -f "$FLAG"                 # consume: fire exactly once
 
 # The five tracks, in the order the router names them.
 category_name() { # $1 = A..E -> "<name> → <skill>"
