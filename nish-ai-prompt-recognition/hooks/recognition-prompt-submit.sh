@@ -19,7 +19,7 @@ FLAG_DIR="$HOME/.claude"
 JEV="$HOME/.claude/skills/nish-ai-jev/jev"
 ROUTE_QUESTIONS="$HOME/.claude/skills/nish-ai-prompt-recognition/jev/route.json"
 # Replay-tuned: below this the distribution is spread enough that naming two
-# candidates beats naming one. See the threshold table in the project README.
+# candidates beats naming one. See the threshold table in nish-ai-jev/README.md.
 ROUTE_CONFIDENCE=0.75
 ROUTE_TIMEOUT=2
 DRIFT_QUESTIONS="$HOME/.claude/skills/nish-ai-prompt-recognition/jev/drift.json"

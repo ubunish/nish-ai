@@ -26,6 +26,9 @@ Two diagram renderers, split by skill. `nish-ai-project-planning` and `nish-ai-w
 | `./tests/statusline.sh` | Run the statusline-badge test suite (no bats; needs `jq`) |
 | `./tests/session-id.sh` | Run the flag-path safety test suite (no bats; needs `jq`) |
 | `./tests/style-toggle.sh` | Run the writing-style toggle test suite (no bats; needs `jq`) |
+| `./tests/jev.sh` | Run the jev CLI + replay test suite (no bats; needs `jq` + `uv`) |
+| `./tests/router.sh` | Run the router/drift judgment test suite (no bats; needs `jq` + `uv`) |
+| `./tests/bash-gate.sh` | Run the bash-gate test suite (no bats; needs `jq` + `uv`) |
 
 ## Skills
 
@@ -43,6 +46,7 @@ Two diagram renderers, split by skill. `nish-ai-project-planning` and `nish-ai-w
 | `nish-ai-ros2` | Auto-active ROS2 best practices (rides the always-on tier) |
 | `nish-ai-uv` | Auto-active "prefer uv" convention + SessionStart anchor + PreToolUse enforcement hook |
 | `nish-ai-d2` | d2 diagram authoring reference, loaded by name by `nish-ai-documentation` |
+| `nish-ai-jev` | Typed judgments for hooks and gates via TypeSafe's Jev, loaded by name |
 
 ## Slash Commands
 
@@ -51,16 +55,16 @@ Symlinked into `~/.claude/commands/` by `install.sh`.
 | Command | Action |
 |---------|--------|
 | `/merge` | Merge the current branch into `main` without a PR, push, and delete the branch (local + remote) |
-| `/cut` | Audit the whole repository for deletable code — spawns the code reviewer in repo mode for a ranked, deletion-only pass |
+| `/cut` | Audit the whole repository for deletable code — spawns the code reviewer in repo mode for a deletion-only pass, then re-ranks the candidates with Jev on safety, payoff and coupling |
 
 ## Agents
 
-Fresh-context reviewer subagents, symlinked into `~/.claude/agents/` by `install.sh`. Spawned by `nish-ai-goal-oriented-coding` at the commit gate — a reviewer with no attachment to how the code was written catches residue the writer's own context hides. Both run on Haiku, read-only, and return severity-tagged findings: `high` blocks the commit, `low` surfaces as a note.
+Fresh-context reviewer subagents, symlinked into `~/.claude/agents/` by `install.sh`. Spawned by `nish-ai-goal-oriented-coding` at the commit gate — a reviewer with no attachment to how the code was written catches residue the writer's own context hides. Both run on Haiku, read-only, and return severity-tagged findings: `high` blocks the commit, `low` surfaces as a note. Each finding is then checked back against the hunk it names, and one the code does not support is tagged `unverified` rather than dropped.
 
 | Agent | Lens | Spawns |
 |-------|------|--------|
-| `nish-ai-code-reviewer` | The seven `nish-ai-coding` principles | Every commit |
-| `nish-ai-security-reviewer` | Threat checklist (injection, secrets, auth, traversal, crypto, deserialization, info leak, supply chain) | Only when the diff touches a security surface |
+| `nish-ai-code-reviewer` | The seven `nish-ai-coding` principles | Every commit, unless the Jev triage clears the diff on all seven principles — see [Jev Judgment Layer](#jev-judgment-layer) |
+| `nish-ai-security-reviewer` | Threat checklist (injection, secrets, auth, traversal, crypto, deserialization, info leak, supply chain) | When any of the triage's six security nouls reaches 0.3, or whenever the triage itself fails |
 
 `nish-ai-code-reviewer` runs in two modes. **Diff mode** is the commit-gate review above — one staged diff against the seven `nish-ai-coding` principles, severity-tagged. **Repo mode**, reached via `/cut`, audits the whole repository for deletable code: it proposes removals only (never rewrites), tags each by reason (`delete`/`stdlib`/`native`/`yagni`/`shrink`), ranks by payoff, and closes with a `net: -N lines, -M deps` total.
 
@@ -110,6 +114,14 @@ Graphs live in `~/.cache/codebase-memory-mcp/` (one `.db` per project, plus a sh
 
 `tests/session-id.sh` covers the hooks that write a flag file under a path built from the payload (`coding-pretooluse.sh`, the three `recognition-*` hooks, `style-prompt-submit.sh`). A `session_id` carrying `../` is stripped to a safe segment, the marker still lands inside the directory the hook owns, nothing lands above it, and an id left empty by stripping falls back to `default`. A symlink planted at a flag path is left alone rather than followed, so a toggle cannot truncate what it points at. Runs against a throwaway `HOME` and `TMPDIR`. Needs `jq`.
 
+`tests/jev.sh` covers the `jev` CLI and the `replay` harness: the origin allowlist (an off-allowlist repo exits non-zero and sends nothing), the fail-open exits (no key, no origin, timeout, HTTP error, malformed question file), the request shape for string and structured state, and replay scoring a synthetic transcript. Needs `jq` and `uv`.
+
+`tests/router.sh` covers the Jev path through the session router: a confident judgment settles the category, a spread one names two tracks, a prompt that is only pasted material falls back to the five-way directive, and so does every failure path. Also covers the drift read on later prompts — the shift line above the threshold, silence below it, and no request at all for a prompt under twenty characters. Needs `jq` and `uv`.
+
+`tests/bash-gate.sh` covers the bash gate: the read-only prefilter passes `ls`, `git status` and read-only pipelines without spending a request, a redirection or a command substitution is judged rather than passed, a high probability returns `ask`, and a low one, a missing key, an API error or an uninstalled `jev` all stay silent. Needs `jq` and `uv`.
+
+Every request in these three suites goes to `tests/fixtures/jev-stub.py`, a local stand-in for the API, so they never touch the network and never spend an API call.
+
 `tests/style-toggle.sh` covers the writing-style toggle: `drop style` / `verbose mode` set the off-flag, `resume style` / `style on` / `enable style` clear it, the per-turn reminder is emitted only while style is on, a phrase merely mentioned — quoted in a longer prompt, carried in `cwd` or `transcript_path`, or echoed by an agent task notification — does not toggle, and the raw-payload fallback still toggles when `jq` is absent. Runs against a throwaway `HOME`. Needs `jq`.
 
 ```
@@ -119,6 +131,9 @@ Graphs live in `~/.cache/codebase-memory-mcp/` (one `.db` per project, plus a sh
 ./tests/statusline.sh
 ./tests/session-id.sh
 ./tests/style-toggle.sh
+./tests/jev.sh
+./tests/router.sh
+./tests/bash-gate.sh
 ```
 
 ## Repo Layout
@@ -131,11 +146,12 @@ nish-ai/
 ├── agents/                      reviewer subagents → ~/.claude/agents/
 │   ├── nish-ai-code-reviewer.md
 │   └── nish-ai-security-reviewer.md
-├── tests/                       hook + agent test suites (run.sh, uv.sh, agents.sh, statusline.sh, session-id.sh, style-toggle.sh)
+├── tests/                       hook + agent test suites (run.sh, uv.sh, agents.sh, statusline.sh, session-id.sh, style-toggle.sh, jev.sh, router.sh, bash-gate.sh)
 ├── nish-ai-writing-style/      always-on prose style (+ hooks/)
 ├── nish-ai-uv/                 always-on "prefer uv" convention (+ hooks/)
 ├── nish-ai-github/             commit/branch/PR conventions (+ hooks/)
-├── nish-ai-prompt-recognition/ session router (+ hooks/)
+├── nish-ai-prompt-recognition/ session router (+ hooks/, jev/)
+├── nish-ai-jev/                typed judgments for hooks and gates (+ hooks/)
 ├── nish-ai-d2/                 d2 diagram authoring reference (loaded by name)
 └── nish-ai-categories/         skills dispatched by the router
     ├── nish-ai-coding/
@@ -147,7 +163,7 @@ nish-ai/
     └── nish-ai-ros2/
 ```
 
-`install.sh` finds every `SKILL.md` by `find`, so the `nish-ai-categories/` grouping is for repo organization only — skills link into `~/.claude/skills/` by basename, flat. Commands and agents link the same way, from `commands/*.md` and `agents/*.md`.
+`install.sh` finds every `SKILL.md` by `find`, so the `nish-ai-categories/` grouping is for repo organization only — skills link into `~/.claude/skills/` by basename, flat. Commands and agents link the same way, from `commands/*.md` and `agents/*.md`. A command's sibling `commands/*.json` — a Jev question file — is linked beside it, so the command resolves its own assets under `~/.claude/commands/` rather than reaching back into the repo.
 
 ## Architecture
 
@@ -160,7 +176,7 @@ Two layers: install-time wiring (one-off) and per-session runtime (every session
 ```mermaid
 flowchart LR
     I["install.sh"] --> S["symlink SKILL.md dirs<br/>→ ~/.claude/skills/"]
-    I --> C["symlink commands/*.md<br/>→ ~/.claude/commands/"]
+    I --> C["symlink commands/*.md + *.json<br/>→ ~/.claude/commands/"]
     I --> AG["symlink agents/*.md<br/>→ ~/.claude/agents/"]
     I --> HR["add router hooks<br/>SessionStart + UserPromptSubmit → settings.json"]
     I --> HS["add writing-style hooks<br/>SessionStart + UserPromptSubmit"]
@@ -175,7 +191,7 @@ flowchart LR
 
 | Action | Effect |
 |--------|--------|
-| Symlink | Each skill dir linked into `~/.claude/skills/`, each `commands/*.md` into `~/.claude/commands/`, and each `agents/*.md` into `~/.claude/agents/`, so Claude discovers them |
+| Symlink | Each skill dir linked into `~/.claude/skills/`, each `commands/*.md` and its sibling `*.json` into `~/.claude/commands/`, and each `agents/*.md` into `~/.claude/agents/`, so Claude discovers them |
 | Router hooks | Hard dispatch, not a soft pointer. SessionStart injects the full router ruleset and arms a once-per-session flag; UserPromptSubmit consumes the flag on the first prompt to force categorize + dispatch. Mirrors the writing-style two-hook pattern |
 | Style hooks | SessionStart injects full ruleset; UserPromptSubmit re-injects a reminder each turn |
 | Commit validator | PreToolUse(Bash) auto-rewrites a `git commit` carrying a body or `Co-Authored-By` trailer down to subject-only, preserving both a `git add … &&` prefix and a chained tail (`&& git log`, `&& git push`); denies only what it cannot safely fix (bad prefix, capitalized subject, trailing period) or cannot safely collapse (a second `git commit` in the tail, or a trailer that would survive in the tail) |
@@ -289,6 +305,35 @@ security / destructive / "explain more"  → exempt, full prose
 ```
 
 Both modes share: state idea once, simple word over complex, diagram over text, Title Case headings, sentence case body.
+
+### Jev Judgment Layer
+
+Several hooks used to inject text asking Claude to make a small judgment — which category this prompt is, whether this diff needs a security review, which candidate to cut first. Each of those cost a turn. `nish-ai-jev` sends the same question to TypeSafe's Jev instead, which returns a typed answer with a calibrated probability from one request, and the hook injects a settled result. Claude stays the orchestrator and the only generator.
+
+```mermaid
+flowchart TD
+    R["router hook<br/>category + pasted-only"] --> J["nish-ai-jev/jev"]
+    D["drift hook<br/>has the session pivoted?"] --> J
+    B["bash gate<br/>hard to reverse?"] --> J
+    G["commit gate<br/>6 security · 7 principles · prefix"] --> J
+    C["/cut<br/>safety · payoff · coupling"] --> J
+    P["planning grill<br/>auto-answer from past decisions"] --> J
+
+    J --> AL{"git origin on<br/>nish-ai-jev/allowlist?"}
+    AL -->|no| X["exit ≠ 0 · nothing sent"]
+    AL -->|yes| API["api.typesafe.ai"]
+    API --> OK["answers JSON<br/>caller acts"]
+    API -.timeout · 4xx · 5xx.-> X
+    X --> FB["caller falls back to<br/>pre-Jev behaviour"]
+```
+
+**Data boundary.** `nish-ai-jev/allowlist` holds one glob per line, matched against the repo's git origin. The CLI enforces it, so every caller inherits it and none can opt out. A repo with an unknown origin, or none, never reaches the API. `TYPESAFE_API_KEY` comes from the shell profile — never this repo, never `settings.json`, never a command line.
+
+**Fail-open.** Every caller treats a non-zero exit as "Jev said nothing". The router emits its old five-way directive, the bash gate stays silent, the commit gate spawns the code reviewer, `/cut` presents the reviewer's own ranking, and the grill asks the user. A hook that cannot fall back does not call `jev`.
+
+**Thresholds.** Each caller sets its own against the cost of being wrong, and `nish-ai-jev/replay` is how they move. Security thresholds are low and skip thresholds high on purpose: a wasted review costs a minute, a missed one costs more. The current values live in one place — the threshold table in [`nish-ai-jev/README.md`](nish-ai-jev/README.md) — so a change lands once.
+
+See [`nish-ai-jev/README.md`](nish-ai-jev/README.md) for the CLI contract, the thresholds, and the question-design rules.
 
 ### Categories
 

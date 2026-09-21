@@ -104,8 +104,8 @@ Rules that matter in practice:
 
 A probability is not a decision. Each caller sets its own threshold against the
 consequence of being wrong, and `nish-ai-jev/replay` is how a threshold gets
-chosen rather than guessed. Current settings live in the README's threshold
-table.
+chosen rather than guessed. Current settings live in one place, the threshold
+table in nish-ai-jev/README.md.
 
 ## Output Style (Recency Anchor)
 
