@@ -102,6 +102,8 @@ tests pass → jev triage (one call, 14 questions)
                ├─ all 7 principles top level + confident ─── skip the code reviewer, log the skip
                └─ otherwise ──────────────────────────────→ nish-ai-code-reviewer (weakest principles as focus)
                                                              ↓
+                                       each finding verified against its hunk
+                                                             ↓
                                        high findings block · low findings are a note
 ```
 
@@ -151,12 +153,27 @@ jq -nc \
 
 Spot-check the log when a bug reaches `main`: find the commit's diff hash, and read what the gate believed about it.
 
-### 5. Act On Findings
+### 5. Verify The Findings
+
+A reviewer reads a diff without the context that produced it, which is the point — and the same distance sometimes produces a finding the code does not support. Each finding is put back to Jev against the hunk it names:
+
+```bash
+jq -nc --arg finding "$finding" --arg hunk "$hunk" '{finding: $finding, hunk: $hunk}' \
+  | "$HOME/.claude/skills/nish-ai-jev/jev" --timeout 5 \
+    "$HOME/.claude/skills/nish-ai-goal-oriented-coding/jev/verify.json"
+```
+
+A `real` Noul below **0.5** tags the finding `unverified` when it is reported.
+
+**No finding is ever dropped.** A low probability is a second opinion, not a veto — an unverified high finding is still shown, still explained, and still decided on. A failed Jev call leaves every finding untagged.
+
+### 6. Act On Findings
 
 - Any **high** finding blocks the commit. Fix it, then re-spawn the same reviewer on the new diff. Repeat until no high findings remain.
 - **Low** findings are surfaced to the user as a note; they do not block.
+- An `unverified` tag travels with the finding wherever it is reported, so the user sees both the claim and the doubt.
 
-### 6. Commit Message
+### 7. Commit Message
 
 Validate the step's planned message against `nish-ai-github` format (lowercase prefix, imperative, no body). Where the triage's prefix Choice disagrees with the plan's declared prefix, the plan wins — say so in one line rather than silently changing it.
 

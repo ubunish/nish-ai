@@ -1,0 +1,13 @@
+{
+  "real": {
+    "type": "noul",
+    "instructions": {
+      "question": "A reviewer reported the finding in `finding` against the code in `hunk`. Reading the code itself, is the finding real?",
+      "note": "Judge only whether the defect described is present in this code. A finding can be well written and still describe something the code does not do."
+    },
+    "criteria": {
+      "true": "The code has the problem described. A reader could point at the lines that cause it.",
+      "false": "The code does not have the problem — the reviewer misread it, the case is already handled elsewhere in the hunk, or the claim rests on something the hunk does not do."
+    }
+  }
+}
