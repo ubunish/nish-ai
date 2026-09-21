@@ -1,0 +1,22 @@
+{
+  "answer": {
+    "type": "choice",
+    "instructions": "A planning question is being put to the user, with a fixed set of candidate answers. The question text is `question`, and the candidate answers are the values of `options` under the same keys as the choices below. `recent` holds the user's most recent resolved planning decisions, newest last. Pick the option the user would pick, judging only from what `recent` shows about how this user decides. Pick `ask_the_user` whenever `recent` does not settle it: when the question is new ground, when the past decisions point both ways, or when the right answer depends on this project rather than on the user's habits.",
+    "criteria": {
+      "option_1": "The answer held at `options.option_1`",
+      "option_2": "The answer held at `options.option_2`",
+      "option_3": "The answer held at `options.option_3`",
+      "option_4": "The answer held at `options.option_4`",
+      "option_5": "The answer held at `options.option_5`",
+      "ask_the_user": "No listed option is settled by the past decisions, or no option was supplied under that key"
+    }
+  },
+  "precedented": {
+    "type": "noul",
+    "instructions": "Does `recent` contain a decision on substantially the same question as `question`?",
+    "criteria": {
+      "true": "The user has already answered this question, or one that differs only in wording or in the project it was asked about",
+      "false": "The past decisions are about other questions, or the log is empty"
+    }
+  }
+}

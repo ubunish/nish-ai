@@ -39,6 +39,37 @@ Ask one question at a time. Each question follows the grill-me pattern:
 - Surface tradeoffs the user should weigh
 - If the answer is discoverable from the codebase, explore the codebase first
 
+### Auto-Answer
+
+Before asking a question, put it to `jev`. Build the state — the question, its candidate answers under fixed keys, and the most recent 20 decisions from the log — and call this skill's own question file:
+
+```bash
+LOG="$HOME/.claude/nish-ai-decisions.jsonl"
+state="$(jq -nc \
+  --arg question "$question" \
+  --argjson options "$options" \
+  --argjson recent "$(tail -n 20 "$LOG" | jq -sc .)" \
+  '{question: $question, options: $options, recent: $recent}')"
+answers="$(printf '%s' "$state" | "$HOME/.claude/skills/nish-ai-jev/jev" --timeout 2 \
+  "$HOME/.claude/skills/nish-ai-project-planning/jev/grill.json")" || answers=""
+```
+
+`$options` is a JSON object keyed `option_1` through `option_5`, holding the candidate answers in the order they would be offered to the user. Two to five options; the keys are the ones `grill.json` names, so the returned `choice` maps straight back to one concrete option.
+
+Auto-answer only when all of these hold:
+- `jev` exited zero
+- The log exists and is non-empty
+- `answers.answer.choice` is not `ask_the_user`
+- `answers.answer.confidence` is at least **0.75**
+
+Anything else asks the user the question exactly as this skill does without Jev. A non-zero `jev` exit always asks. An empty or missing log always asks.
+
+The threshold is 0.75 because a wrong auto-answer costs one correction at draft review rather than a wrong plan. Tune it with `nish-ai-jev/replay` against real logged decisions rather than by feel.
+
+The `precedented` noul is a read on the choice, not a second gate. A high confidence over a low `precedented` means the model extrapolated from habit instead of matching a real precedent — flag that answer in the draft so the user looks at it harder.
+
+Every auto-answered question is announced as it is skipped, and the draft shown at step 4 lists all of them under an **Auto-Answered** heading with their answers, so the user sees what was decided on their behalf. The user overturns any of them by naming it; the question is then asked, and the log records the correction.
+
 ### Scope Challenge (mandatory)
 
 Every grill includes a scope-challenge pass — no skip. For each proposed piece of the plan, probe whether it needs to exist now or is speculative:
@@ -50,6 +81,36 @@ Before drafting, name what is explicitly NOT being built — the deferred and re
 Stop grilling when:
 - Goal, context, every step, every commit boundary, and every test-plan item are pinned down
 - User says "enough questions, draft the plan"
+
+## Decision Log
+
+Every resolved grill question is appended as one JSON line to `~/.claude/nish-ai-decisions.jsonl`, whether it was auto-answered or asked. The log is append-only, lives outside the repo, and is the state the auto-answer judgment reads.
+
+```bash
+jq -nc \
+  --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  --arg repo "$(git remote get-url origin 2>/dev/null || basename "$PWD")" \
+  --arg question "$question" \
+  --argjson options "$options" \
+  --arg answer "$answer" \
+  --arg source "$source" \
+  --argjson confidence "${confidence:-null}" \
+  '{ts: $ts, repo: $repo, question: $question, options: $options,
+    answer: $answer, source: $source, confidence: $confidence}' \
+  >> "$HOME/.claude/nish-ai-decisions.jsonl"
+```
+
+| Field | Meaning |
+|-------|---------|
+| `ts` | ISO 8601 UTC timestamp |
+| `repo` | Git origin, or the directory name when there is no origin |
+| `question` | The question text as it was put to the user |
+| `options` | The same `option_1`-keyed object that was offered to Jev |
+| `answer` | The resolved answer text |
+| `source` | `asked`, `auto`, or `overturned` — auto-answered and then corrected by the user at draft review |
+| `confidence` | The Choice confidence when `source` is `auto`, otherwise `null` |
+
+An `overturned` entry keeps one wrong auto-answer from becoming a precedent: it is logged with the answer the user gave, so the next judgment reads the correction rather than the mistake.
 
 ## Plan Structure
 
