@@ -1,0 +1,13 @@
+{
+  "risky": {
+    "type": "noul",
+    "instructions": {
+      "question": "Would running `command` in `cwd` on branch `branch` be hard to reverse, or would it reach outside this machine?",
+      "note": "Judge the command as written. A command that only reads, lists, searches, or prints is neither."
+    },
+    "criteria": {
+      "true": "It deletes, overwrites, or truncates something; rewrites or discards history; installs, uninstalls, or changes system state; or publishes, sends, or deploys something other people will see.",
+      "false": "It reads, lists, searches, prints, or builds locally, and running it twice leaves the machine as it was."
+    }
+  }
+}
