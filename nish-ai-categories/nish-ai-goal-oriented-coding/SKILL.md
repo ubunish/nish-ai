@@ -52,15 +52,7 @@ The `/execute` slash command runs this same workflow on the latest `plans/*.md` 
      not inherit this session's loaded skills)
    - Dependent step → execute sequentially after its dependencies finish
    - Per step: write code under `nish-ai-coding` rules
-6. **Pre-commit gate** (per step):
-   - Run the project's test command — must pass
-   - **Spawn `nish-ai-code-reviewer`** (an `Agent` subagent, fresh context) on the staged diff — every commit, no exceptions. A reviewer with no attachment to how the code was written catches residue the writer's own context hides. It replaces inline principle review.
-   - **Detect security signals** in the staged diff: auth/authz, secrets or env handling, network calls, file-path construction, untrusted input, crypto. Any present → also **spawn `nish-ai-security-reviewer`** on the diff. No signal → skip it.
-   - **Act on severity**:
-     - any **high** finding → blocks the commit. Fix it, then re-spawn the same reviewer on the new diff. Repeat until no high findings remain.
-     - **low** findings → surface as a note to the user; do not block.
-   - Validate the step's planned commit message against `nish-ai-github` format (lowercase prefix, imperative, no body)
-   - If the test command fails, fix before committing; do NOT commit broken state
+6. **Pre-commit gate** (per step): see **Pre-Commit Gate** below. Tests must pass, Jev triages the staged diff, and the reviewers spawn on what the triage says is worth reviewing.
 7. **Commit**: invoke `nish-ai-github`, then commit with the step's declared message from the plan
 8. **Loop** until all steps complete
 9. **Ship** (per `nish-ai-github`):
@@ -98,6 +90,75 @@ The `/execute` slash command runs this same workflow on the latest `plans/*.md` 
     ```
 
 12. **Stop**.
+
+## Pre-Commit Gate
+
+The gate runs once per step, on the staged diff, before the commit.
+
+```
+tests pass → jev triage (one call, 14 questions)
+               ├─ every security noul < 0.3 ──────────────── no security reviewer
+               │  any noul ≥ 0.3 ──────────────────────────→ nish-ai-security-reviewer (surfaces named)
+               ├─ all 7 principles top level + confident ─── skip the code reviewer, log the skip
+               └─ otherwise ──────────────────────────────→ nish-ai-code-reviewer (weakest principles as focus)
+                                                             ↓
+                                       high findings block · low findings are a note
+```
+
+### 1. Tests
+
+Run the project's test command. It must pass. A failing test is fixed before the commit; broken state is never committed.
+
+### 2. Triage
+
+Send the staged diff to Jev. One call answers all fourteen questions:
+
+```bash
+git diff --cached | "$HOME/.claude/skills/nish-ai-jev/jev" --timeout 10 \
+  "$HOME/.claude/skills/nish-ai-goal-oriented-coding/jev/gate.json"
+```
+
+`gate.json` holds six security Nouls (auth, secrets, network, paths, untrusted input, crypto), seven principle Scores on levels 0-3, and a Choice over the commit prefix.
+
+**A non-zero exit is not a pass.** Fallback here means the gate behaves as it did before Jev existed: the code reviewer spawns, and the security reviewer spawns if the diff looks like it touches a security surface.
+
+### 3. Security Reviewer
+
+Any security Noul at or above **0.3** spawns `nish-ai-security-reviewer` on the staged diff, with the surfaces that crossed the threshold named in its prompt. The threshold is deliberately low: a missed security review costs more than a wasted one.
+
+### 4. Code Reviewer, Or A Logged Skip
+
+`nish-ai-code-reviewer` spawns unless **every** one of these holds:
+
+- The Jev call succeeded
+- All seven principle Scores are at the top level — `score ≥ 2.5`
+- Every one of those seven answers has `confidence ≥ 0.7`
+- Every security Noul is below 0.3
+
+Any one of them failing spawns the reviewer. When it spawns, the two lowest-scoring principles go into its prompt as focus, so a fresh reviewer starts where the diff is weakest.
+
+Every skip is logged, so the rule can be checked against reality later:
+
+```bash
+jq -nc \
+  --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  --arg repo "$(git remote get-url origin 2>/dev/null)" \
+  --arg diff_sha "$(git diff --cached | shasum -a 256 | cut -d' ' -f1)" \
+  --argjson answers "$answers" \
+  '{ts: $ts, repo: $repo, diff_sha: $diff_sha, answers: $answers}' \
+  >> "$HOME/.claude/nish-ai-jev-skips.jsonl"
+```
+
+Spot-check the log when a bug reaches `main`: find the commit's diff hash, and read what the gate believed about it.
+
+### 5. Act On Findings
+
+- Any **high** finding blocks the commit. Fix it, then re-spawn the same reviewer on the new diff. Repeat until no high findings remain.
+- **Low** findings are surfaced to the user as a note; they do not block.
+
+### 6. Commit Message
+
+Validate the step's planned message against `nish-ai-github` format (lowercase prefix, imperative, no body). Where the triage's prefix Choice disagrees with the plan's declared prefix, the plan wins — say so in one line rather than silently changing it.
 
 ## Parallel Execution Rules
 

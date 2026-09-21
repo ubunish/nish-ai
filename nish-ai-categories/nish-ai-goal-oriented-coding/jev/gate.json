@@ -1,0 +1,134 @@
+{
+  "sec_auth": {
+    "type": "noul",
+    "instructions": "Does this diff touch authentication or authorization — who a caller is, what they may do, a session, a token, a permission check, or a privilege boundary?",
+    "criteria": {
+      "true": "The diff adds, removes, or changes a check on identity or permission, or code that runs on one side of such a check.",
+      "false": "Nothing in the diff decides who anyone is or what they may do."
+    }
+  },
+  "sec_secrets": {
+    "type": "noul",
+    "instructions": "Does this diff handle a secret or an environment variable — an API key, a token, a password, a credential file, or anything read from the environment?",
+    "criteria": {
+      "true": "A secret or environment value is read, written, passed on, logged, or stored.",
+      "false": "No credential or environment value appears in the diff."
+    }
+  },
+  "sec_network": {
+    "type": "noul",
+    "instructions": "Does this diff make or change an outbound network call, or the data that goes into one?",
+    "criteria": {
+      "true": "The diff sends a request, opens a connection, changes an endpoint, or builds the payload for one.",
+      "false": "The diff stays on the local machine."
+    }
+  },
+  "sec_paths": {
+    "type": "noul",
+    "instructions": "Does this diff build, join, or resolve a filesystem path, or write to one?",
+    "criteria": {
+      "true": "A path is constructed from parts, taken from input, resolved through a symlink, or used as a write target.",
+      "false": "No path is built or written to, or every path is a fixed literal."
+    }
+  },
+  "sec_untrusted": {
+    "type": "noul",
+    "instructions": "Does this diff consume input the program does not control — a payload, user text, a file's contents, a command's output, or a response from elsewhere?",
+    "criteria": {
+      "true": "Untrusted data is parsed, interpolated into a command or query, or used to decide what runs.",
+      "false": "Every value in the diff comes from the program itself."
+    }
+  },
+  "sec_crypto": {
+    "type": "noul",
+    "instructions": "Does this diff use cryptography or randomness that something depends on — hashing, signing, encryption, a comparison of secrets, or a generated identifier?",
+    "criteria": {
+      "true": "The diff hashes, signs, encrypts, compares secret values, or generates a value that must be unguessable.",
+      "false": "No cryptographic or random value appears."
+    }
+  },
+
+  "modular": {
+    "type": "score",
+    "instructions": "How well does the code added in this diff hold to one responsibility per unit?",
+    "criteria": [
+      "A unit clearly does several unrelated things; its description needs an 'and'.",
+      "A unit mixes one main job with incidental work that belongs elsewhere.",
+      "Each unit has one job, with a seam or two that could be cleaner.",
+      "Every unit added does exactly one thing, and its name says which."
+    ]
+  },
+  "scalable": {
+    "type": "score",
+    "instructions": "Would the pattern in this diff still work at ten times the current data or load, without being rewritten?",
+    "criteria": [
+      "It breaks well before ten times — everything in memory, or a scan where an index is needed.",
+      "It survives but degrades sharply; the cost grows faster than the work.",
+      "It holds at ten times, with one spot that would need attention beyond that.",
+      "The shape is indifferent to volume — streamed, paginated, or bounded by design."
+    ]
+  },
+  "consistent": {
+    "type": "score",
+    "instructions": "How closely does this diff follow the conventions already visible in the surrounding code — naming, structure, error handling, formatting?",
+    "criteria": [
+      "It reads as if written for a different project.",
+      "It follows some conventions and invents others without reason.",
+      "It matches the surrounding code, with a small departure or two.",
+      "Nothing in it stands out as new; it reads like the code around it."
+    ]
+  },
+  "documented": {
+    "type": "score",
+    "instructions": "Is what this diff adds explained where a reader would look for it — a module README, a header comment, or the project's own documentation?",
+    "criteria": [
+      "Something non-obvious was added with no explanation anywhere.",
+      "There is an explanation, but it is thin or in the wrong place.",
+      "The addition is explained where a reader would look.",
+      "The addition is explained, and the explanation says why it exists, not only what it does."
+    ]
+  },
+  "tested": {
+    "type": "score",
+    "instructions": "Does this diff ship with tests for the behaviour it adds or changes?",
+    "criteria": [
+      "New behaviour ships with no test at all.",
+      "There is a test, but it misses the behaviour that matters or asserts the implementation rather than the result.",
+      "The main behaviour is covered; an edge case or a failure path is not.",
+      "Behaviour and failure paths are both covered, at the boundary rather than inside."
+    ]
+  },
+  "no_premature_abstraction": {
+    "type": "score",
+    "instructions": "Does this diff generalize only where there are already three real cases, rather than ahead of need?",
+    "criteria": [
+      "It adds a general mechanism with one caller — options, hooks, or indirection nothing uses yet.",
+      "It generalizes on two similar cases, where a duplicate would have been honest.",
+      "It stays concrete, with one piece of flexibility that is arguable.",
+      "Everything added is concrete, or abstracts a pattern with three real cases behind it."
+    ]
+  },
+  "self_explaining": {
+    "type": "score",
+    "instructions": "Do the names in this diff carry their meaning, with comments reserved for why rather than what?",
+    "criteria": [
+      "Names are opaque or misleading, and comments restate the code line by line.",
+      "Names are workable but vague, and a comment is doing work a name should do.",
+      "Names read well, with a comment or two that adds nothing.",
+      "Names say what they hold or do, and every comment explains a decision the code cannot show."
+    ]
+  },
+
+  "prefix": {
+    "type": "choice",
+    "instructions": "Which commit prefix fits this diff most narrowly?",
+    "criteria": {
+      "init": "The first commit of a repository or a new component's scaffolding.",
+      "feat": "New behaviour a user or caller can observe.",
+      "fix": "A correction to behaviour that was wrong.",
+      "docs": "Documentation or prose only.",
+      "refactor": "A change in structure with no change in behaviour.",
+      "chore": "Mechanical housekeeping — a bump, a move, a rename, a config or ignore-file edit."
+    }
+  }
+}
