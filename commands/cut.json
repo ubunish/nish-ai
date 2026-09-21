@@ -1,0 +1,35 @@
+{
+  "safety": {
+    "type": "score",
+    "instructions": "How safe is it to delete this candidate from the repository? Judge only the risk of the deletion itself: whether removing it can break behaviour someone depends on, and how visibly it would break if it did.",
+    "criteria": [
+      "Deleting it removes behaviour other code or users depend on right now, and the breakage would surface only later, in production or in someone else's repo.",
+      "Deleting it probably breaks something: the candidate has live callers, or it is a public entry point that an outside caller may hold.",
+      "Unclear either way. The candidate may be reached through a dynamic path, a config value, a hook, or a documented interface that a static read cannot rule out.",
+      "Almost certainly inert: no caller is visible, and anything that did reach it would fail loudly and immediately.",
+      "Provably dead. It is unreachable, duplicated elsewhere, or already superseded, and nothing outside it can observe its absence."
+    ]
+  },
+  "payoff": {
+    "type": "score",
+    "instructions": "How much does the repository gain from deleting this candidate? Weigh the lines and dependencies it takes with it, and the ongoing cost it stops imposing on whoever reads and maintains the code.",
+    "criteria": [
+      "Nothing meaningful. A handful of lines that cost no one anything to leave in place.",
+      "Small tidy-up: a short block or a stale file that only marginally reduces what a reader has to hold.",
+      "Real but local: a whole function, command, or config path disappears, and one file gets easier to read.",
+      "Substantial: a module, a whole abstraction layer, or a duplicated implementation goes, and several call sites simplify behind it.",
+      "Large: it removes a dependency, a build step, or an entire subsystem, and cuts maintenance the repository would otherwise carry indefinitely."
+    ]
+  },
+  "coupling": {
+    "type": "score",
+    "instructions": "How entangled is this candidate with the rest of the repository? Judge the reach of the edit: how many other files, call sites, tests, docs, or config entries must change in the same commit for the deletion to leave the repository consistent.",
+    "criteria": [
+      "Self-contained. The candidate is deleted whole and nothing else in the repository mentions it.",
+      "One or two mechanical follow-ups, such as an import, a test, or a line in a README.",
+      "A handful of touch points across a few files, each an obvious edit once the deletion is decided.",
+      "Widely referenced: many call sites, or a shared interface that several modules are written against.",
+      "Load-bearing. It sits under a public contract, an installed hook, or generated state, so removing it forces a coordinated change across the repository and possibly outside it."
+    ]
+  }
+}

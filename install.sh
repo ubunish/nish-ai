@@ -168,9 +168,12 @@ find_skills() {
     done
 }
 
+# A command is its .md, plus any sibling file it reads at runtime — a Jev
+# question file, for instance. Both are linked, so a command can resolve its
+# own assets under ~/.claude/commands instead of reaching back into the repo.
 find_commands() {
   [[ -d "$REPO_DIR/commands" ]] || return 0
-  find "$REPO_DIR/commands" -maxdepth 1 -name '*.md' -type f
+  find "$REPO_DIR/commands" -maxdepth 1 \( -name '*.md' -o -name '*.json' \) -type f
 }
 
 find_agents() {
