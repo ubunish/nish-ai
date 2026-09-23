@@ -97,14 +97,14 @@ The gate runs once per step, on the staged diff, before the commit.
 
 ```
 tests pass → jev triage (one call, 14 questions)
-               ├─ every security noul < 0.3 ──────────────── no security reviewer
-               │  any noul ≥ 0.3 ──────────────────────────→ nish-ai-security-reviewer (surfaces named)
-               ├─ all 7 principles top level + confident ─── skip the code reviewer, log the skip
-               └─ otherwise ──────────────────────────────→ nish-ai-code-reviewer (weakest principles as focus)
-                                                             ↓
-                                       each finding verified against its hunk
-                                                             ↓
-                                       high findings block · low findings are a note
+               ├─ every security noul < 0.3 ─────────────── no security reviewer
+               │  any noul ≥ 0.3 ─────────────────────────→ nish-ai-security-reviewer (surfaces named)
+               ├─ applicable principles top level ───────── skip the code reviewer, log the skip
+               └─ otherwise ─────────────────────────────→ nish-ai-code-reviewer (weakest principles as focus)
+                                                            ↓
+                                      each finding verified against its hunk
+                                                            ↓
+                                      high findings block · low findings are a note
 ```
 
 ### 1. Tests
@@ -130,14 +130,25 @@ Any security Noul at or above **0.3** spawns `nish-ai-security-reviewer` on the 
 
 ### 4. Code Reviewer, Or A Logged Skip
 
+Which principles apply depends on what the diff is, which the triage's `prefix` Choice already answers:
+
+| Prefix | Principles judged |
+|--------|-------------------|
+| `feat`, `fix`, `refactor`, `init` | All seven |
+| `docs`, `chore` | `documented`, `consistent`, `self_explaining` |
+
+A README edit ships no tests because it has no behaviour to test, so `tested` scores zero against it with full confidence — correctly. Holding prose to it would mean the skip could never fire, which is a rule that does nothing. The four principles left out for `docs` and `chore` are the four that have nothing to judge there.
+
 `nish-ai-code-reviewer` spawns unless **every** one of these holds:
 
 - The Jev call succeeded
-- All seven principle Scores are at the top level — `score ≥ 2.5`
-- Every one of those seven answers has `confidence ≥ 0.7`
+- Every **applicable** principle Score is at the top level — `score ≥ 2.5`
+- Every one of those answers has `confidence ≥ 0.7`
 - Every security Noul is below 0.3
 
-Any one of them failing spawns the reviewer. When it spawns, the two lowest-scoring principles go into its prompt as focus, so a fresh reviewer starts where the diff is weakest.
+Any one of them failing spawns the reviewer. When it spawns, the two lowest-scoring applicable principles go into its prompt as focus, so a fresh reviewer starts where the diff is weakest.
+
+The prefix that selects the set is Jev's, not the plan's. Where the two disagree, the reviewer spawns — a diff the plan calls `docs` but Jev reads as `feat` is judged on all seven.
 
 Every skip is logged, so the rule can be checked against reality later:
 

@@ -1,53 +1,52 @@
 {
   "sec_auth": {
     "type": "noul",
-    "instructions": "Does this diff touch authentication or authorization — who a caller is, what they may do, a session, a token, a permission check, or a privilege boundary?",
+    "instructions": "Does this diff change code that decides who a caller is or what they may do \u2014 a session, a token, a permission check, or a privilege boundary?",
     "criteria": {
       "true": "The diff adds, removes, or changes a check on identity or permission, or code that runs on one side of such a check.",
-      "false": "Nothing in the diff decides who anyone is or what they may do."
+      "false": "Nothing in the diff decides who anyone is or what they may do. The diff only documents, describes or discusses such code \u2014 prose, a comment, a README, a threshold table \u2014 without changing what runs."
     }
   },
   "sec_secrets": {
     "type": "noul",
-    "instructions": "Does this diff handle a secret or an environment variable — an API key, a token, a password, a credential file, or anything read from the environment?",
+    "instructions": "Does this diff change code that handles a secret or an environment value \u2014 an API key, a token, a password, a credential file?",
     "criteria": {
       "true": "A secret or environment value is read, written, passed on, logged, or stored.",
-      "false": "No credential or environment value appears in the diff."
+      "false": "No credential or environment value appears in the diff. The diff only documents, describes or discusses such code \u2014 prose, a comment, a README, a threshold table \u2014 without changing what runs."
     }
   },
   "sec_network": {
     "type": "noul",
-    "instructions": "Does this diff make or change an outbound network call, or the data that goes into one?",
+    "instructions": "Does this diff change code that makes an outbound network call, or that builds the data going into one?",
     "criteria": {
       "true": "The diff sends a request, opens a connection, changes an endpoint, or builds the payload for one.",
-      "false": "The diff stays on the local machine."
+      "false": "The diff stays on the local machine. The diff only documents, describes or discusses such code \u2014 prose, a comment, a README, a threshold table \u2014 without changing what runs."
     }
   },
   "sec_paths": {
     "type": "noul",
-    "instructions": "Does this diff build, join, or resolve a filesystem path, or write to one?",
+    "instructions": "Does this diff change code that builds, joins or resolves a filesystem path, or that writes to one?",
     "criteria": {
       "true": "A path is constructed from parts, taken from input, resolved through a symlink, or used as a write target.",
-      "false": "No path is built or written to, or every path is a fixed literal."
+      "false": "No path is built or written to, or every path is a fixed literal. The diff only documents, describes or discusses such code \u2014 prose, a comment, a README, a threshold table \u2014 without changing what runs."
     }
   },
   "sec_untrusted": {
     "type": "noul",
-    "instructions": "Does this diff consume input the program does not control — a payload, user text, a file's contents, a command's output, or a response from elsewhere?",
+    "instructions": "Does this diff change code that consumes input the program does not control \u2014 a payload, user text, a file's contents, a command's output, a response from elsewhere?",
     "criteria": {
       "true": "Untrusted data is parsed, interpolated into a command or query, or used to decide what runs.",
-      "false": "Every value in the diff comes from the program itself."
+      "false": "Every value in the diff comes from the program itself. The diff only documents, describes or discusses such code \u2014 prose, a comment, a README, a threshold table \u2014 without changing what runs."
     }
   },
   "sec_crypto": {
     "type": "noul",
-    "instructions": "Does this diff use cryptography or randomness that something depends on — hashing, signing, encryption, a comparison of secrets, or a generated identifier?",
+    "instructions": "Does this diff change code that hashes, signs, encrypts, compares secret values, or generates a value that must be unguessable?",
     "criteria": {
       "true": "The diff hashes, signs, encrypts, compares secret values, or generates a value that must be unguessable.",
-      "false": "No cryptographic or random value appears."
+      "false": "No cryptographic or random value appears. The diff only documents, describes or discusses such code \u2014 prose, a comment, a README, a threshold table \u2014 without changing what runs."
     }
   },
-
   "modular": {
     "type": "score",
     "instructions": "How well does the code added in this diff hold to one responsibility per unit?",
@@ -62,15 +61,15 @@
     "type": "score",
     "instructions": "Would the pattern in this diff still work at ten times the current data or load, without being rewritten?",
     "criteria": [
-      "It breaks well before ten times — everything in memory, or a scan where an index is needed.",
+      "It breaks well before ten times \u2014 everything in memory, or a scan where an index is needed.",
       "It survives but degrades sharply; the cost grows faster than the work.",
       "It holds at ten times, with one spot that would need attention beyond that.",
-      "The shape is indifferent to volume — streamed, paginated, or bounded by design."
+      "The shape is indifferent to volume \u2014 streamed, paginated, or bounded by design."
     ]
   },
   "consistent": {
     "type": "score",
-    "instructions": "How closely does this diff follow the conventions already visible in the surrounding code — naming, structure, error handling, formatting?",
+    "instructions": "How closely does this diff follow the conventions already visible in the surrounding code \u2014 naming, structure, error handling, formatting?",
     "criteria": [
       "It reads as if written for a different project.",
       "It follows some conventions and invents others without reason.",
@@ -80,7 +79,7 @@
   },
   "documented": {
     "type": "score",
-    "instructions": "Is what this diff adds explained where a reader would look for it — a module README, a header comment, or the project's own documentation?",
+    "instructions": "Is what this diff adds explained where a reader would look for it \u2014 a module README, a header comment, or the project's own documentation?",
     "criteria": [
       "Something non-obvious was added with no explanation anywhere.",
       "There is an explanation, but it is thin or in the wrong place.",
@@ -102,7 +101,7 @@
     "type": "score",
     "instructions": "Does this diff generalize only where there are already three real cases, rather than ahead of need?",
     "criteria": [
-      "It adds a general mechanism with one caller — options, hooks, or indirection nothing uses yet.",
+      "It adds a general mechanism with one caller \u2014 options, hooks, or indirection nothing uses yet.",
       "It generalizes on two similar cases, where a duplicate would have been honest.",
       "It stays concrete, with one piece of flexibility that is arguable.",
       "Everything added is concrete, or abstracts a pattern with three real cases behind it."
@@ -118,7 +117,6 @@
       "Names say what they hold or do, and every comment explains a decision the code cannot show."
     ]
   },
-
   "prefix": {
     "type": "choice",
     "instructions": "Which commit prefix fits this diff most narrowly?",
@@ -128,7 +126,7 @@
       "fix": "A correction to behaviour that was wrong.",
       "docs": "Documentation or prose only.",
       "refactor": "A change in structure with no change in behaviour.",
-      "chore": "Mechanical housekeeping — a bump, a move, a rename, a config or ignore-file edit."
+      "chore": "Mechanical housekeeping \u2014 a bump, a move, a rename, a config or ignore-file edit."
     }
   }
 }
