@@ -85,6 +85,12 @@ assert_decision "git status passes"            pass 'git status --short'
 assert_decision "piped read-only chain passes" pass 'git log --oneline | head -20'
 assert_decision "cat into grep passes"         pass 'cat README.md | grep -c set'
 assert_decision "read-only && chain passes"    pass 'git status --short && git log --oneline'
+assert_decision "read-only ; chain passes"     pass 'git status; git log -1'
+assert_decision "stderr to null passes"        pass 'ls missing 2>/dev/null'
+assert_decision "stdout to null passes"        pass 'grep -q x notes.md >/dev/null'
+assert_decision "stderr merge passes"          pass 'git log -1 2>&1 | tail -3'
+assert_decision "stacked redirects pass"       pass 'ls x >/dev/null 2>&1'
+assert_decision "mkdir passes"                 pass 'mkdir -p build/out'
 [[ "$(requests)" == "$before" ]] && ok "prefilter spends no request" \
   || bad "prefilter spends no request" "stub logged $(( $(requests) - before )) request(s)"
 
@@ -97,6 +103,13 @@ assert_decision "git push asks"                ask  'git push --force origin mai
 assert_decision "background chaining asks"     ask  'echo test & rm -rf scratch'
 assert_decision "brace group asks"             ask  '{ rm -rf scratch; }'
 assert_decision "escape asks"                  ask  'echo a\; rm -rf scratch'
+assert_decision "; chained rm asks"            ask  'git status; rm -rf scratch'
+assert_decision "stderr to a file asks"        ask  'ls 2>/tmp/x'
+assert_decision "null-like path asks"          ask  'cat a >/dev/nullx'
+assert_decision "git stash asks"               ask  'git stash drop'
+# Hooks run on add and commit; fetch reaches a remote.
+assert_decision "git commit asks"              ask  'git commit -m "fix: x"'
+assert_decision "git fetch asks"               ask  'git fetch origin'
 # A verb-only prefilter would read these as reads; the flag is what writes.
 assert_decision "find -exec asks"              ask  'find . -name "*.tmp" -exec rm -f {} ;'
 assert_decision "sed in place asks"            ask  "sed -i '' 's/a/b/' notes.md"

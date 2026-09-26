@@ -41,16 +41,25 @@ COMMAND="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/nu
 CWD="$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)"
 [[ -d "$CWD" ]] || CWD="$PWD"
 
-# Commands that only ever read, whatever flags they are given. A segment
-# starting with one of these, with no redirection anywhere, needs no judgment —
-# which keeps the common case free.
+# Commands that only read, or only add something local and undoable, whatever
+# flags they are given. A segment starting with one of these, with no
+# redirection anywhere, needs no judgment — which keeps the common case free.
 #
 # find, sed and awk are deliberately absent. Each has a flag that turns a
 # reading command into a writing one — `find -exec` and `-delete`, `sed -i` and
 # its `e` modifier, awk's `system()` — and a verb-only prefilter cannot see the
-# difference. They go to Jev, which reads the whole command.
-READ_ONLY='^(ls|cat|pwd|cd|which|type|head|tail|wc|file|tree|stat|du|df|date|uname|whoami|echo|printf|grep|rg|jq|sort|uniq|cut|diff|basename|dirname|env|man|column)$'
-GIT_READ_ONLY='^(status|diff|log|show|branch|remote|rev-parse|describe|blame|shortlog)$'
+# difference. They go to Jev, which reads the whole command. `git stash` and
+# `git switch` are absent for the same reason: `stash drop` and
+# `switch --discard-changes` lose work. `git add` and `git commit` run repo
+# hooks, which can do anything, and `git fetch` reaches a remote — they are
+# judged unless an allow rule names them.
+SAFE_VERBS='^(ls|cat|pwd|cd|which|type|head|tail|wc|file|tree|stat|du|df|date|uname|whoami|echo|printf|grep|rg|jq|sort|uniq|cut|diff|basename|dirname|env|man|column|mkdir|touch)$'
+GIT_SAFE_SUBCOMMANDS='^(status|diff|log|show|branch|remote|rev-parse|describe|blame|shortlog)$'
+
+# Discarding output, or merging stderr into stdout, changes what is shown and
+# never what runs, so these are removed before the character check rather than
+# sending every `2>/dev/null` to Jev. A redirection to any other target stays.
+HARMLESS_REDIRECT='(^|[[:space:]])([12]?>/dev/null|2>&1)([[:space:]]|$)'
 
 # Every character a command may contain and still be judged by its verbs alone.
 # Naming what is allowed, rather than what is not, is the point: each round of
@@ -99,22 +108,27 @@ is_allowed() { # $1 = one segment, trimmed
   return 1
 }
 
-is_read_only() { # $1 = one segment, trimmed
+is_safe_verb() { # $1 = one segment, trimmed
   local verb subcommand
   read -r verb subcommand _ <<<"$1"
   if [[ "$verb" == "git" ]]; then
-    [[ "$subcommand" =~ $GIT_READ_ONLY ]]
+    [[ "$subcommand" =~ $GIT_SAFE_SUBCOMMANDS ]]
   else
-    [[ "$verb" =~ $READ_ONLY ]]
+    [[ "$verb" =~ $SAFE_VERBS ]]
   fi
 }
 
 needs_no_judgment() { # $1 = the whole command line
-  # `&&` chains two commands the same way a pipe does, and both are split and
-  # judged below — so it is normalized to a pipe before the character check,
-  # which leaves a bare `&` (backgrounding, and a second command after it)
-  # outside the allowed set where it belongs.
-  local line="${1//&&/|}"
+  local line="$1"
+  while [[ "$line" =~ $HARMLESS_REDIRECT ]]; do
+    line="${line/"${BASH_REMATCH[0]}"/ }"
+  done
+  # `&&` and `;` chain two commands the same way a pipe does, and all are split
+  # and judged below — so they are normalized to a pipe before the character
+  # check, which leaves a bare `&` (backgrounding, and a second command after
+  # it) outside the allowed set where it belongs.
+  line="${line//&&/|}"
+  line="${line//;/|}"
   if printf '%s' "$line" | LC_ALL=C grep -q "$UNSAFE_CHAR"; then
     return 1
   fi
@@ -126,7 +140,7 @@ needs_no_judgment() { # $1 = the whole command line
     segment="${segment#"${segment%%[![:space:]]*}"}"   # strip leading blanks
     segment="${segment%"${segment##*[![:space:]]}"}"   # strip trailing blanks
     [[ -n "$segment" ]] || continue
-    is_read_only "$segment" || is_allowed "$segment" || return 1
+    is_safe_verb "$segment" || is_allowed "$segment" || return 1
   done < <(printf '%s\n' "$line" | tr '|' '\n')
   return 0
 }
