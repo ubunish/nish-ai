@@ -104,6 +104,26 @@ assert_decision "awk system asks"              ask  'awk "BEGIN { system(\"rm -r
 GOT_LOW="$(decision "$(run_hook 'rm -rf scratch/' '/low')")"
 [[ "$GOT_LOW" == pass ]] && ok "low probability passes" || bad "low probability passes" "got $GOT_LOW"
 
+echo "allowlist skip"
+printf '%s' '{"permissions":{"allow":["Bash(git push:*)","Bash(find:*)","Bash(make)","Bash(npm run *)"]}}' \
+  > "$FAKE_HOME/.claude/settings.json"
+mkdir -p "$WORK_REPO/.claude"
+printf '%s' '{"permissions":{"allow":["Bash(cargo build:*)"]}}' > "$WORK_REPO/.claude/settings.local.json"
+before="$(requests)"
+assert_decision "narrow prefix rule passes"    pass 'git push origin main'
+assert_decision "exact rule passes"            pass 'make'
+assert_decision "space-star rule passes"       pass 'npm run build'
+assert_decision "project local rule passes"    pass 'cargo build --release'
+assert_decision "allowed segment in chain"     pass 'git push origin main | tail -5'
+[[ "$(requests)" == "$before" ]] && ok "allowlist skip spends no request" \
+  || bad "allowlist skip spends no request" "stub logged $(( $(requests) - before )) request(s)"
+assert_decision "bare-verb rule still asks"    ask  'find . -delete'
+assert_decision "exact rule is not a prefix"   ask  'make clean'
+assert_decision "prefix needs word boundary"   ask  'git pushx origin'
+assert_decision "unallowed segment asks"       ask  'git push origin main && rm -rf scratch'
+assert_decision "metacharacter still asks"     ask  'git push origin "$(rm -rf x)"'
+rm -f "$FAKE_HOME/.claude/settings.json" "$WORK_REPO/.claude/settings.local.json"
+
 echo "fail-open"
 NO_KEY="$(jq -nc --arg c 'rm -rf scratch/' --arg d "$WORK_REPO" '{tool_input:{command:$c}, cwd:$d}' \
   | env HOME="$FAKE_HOME" JEV_ENDPOINT="http://127.0.0.1:$PORT/v1/systemone" -u TYPESAFE_API_KEY \

@@ -60,7 +60,56 @@ GIT_READ_ONLY='^(status|diff|log|show|branch|remote|rev-parse|describe|blame|sho
 # Jev, which reads the whole line. The pipe is the one exception, split below.
 UNSAFE_CHAR='[^A-Za-z0-9 _.,:=@+/*?~%|"'"'"'-]'
 
-is_read_only() { # $1 = the whole command line
+# An "ask" surfaces a prompt even for a command the permission allowlist
+# already approves, so without this the gate re-asks for what the user said
+# yes to. Only narrow rules count: an exact command, or a prefix of two words
+# or more. A bare-verb wildcard like Bash(find:*) approves `find -delete` too,
+# so a command it covers is still judged.
+ALLOW_EXACT=()
+ALLOW_PREFIXES=()
+load_allow_rules() {
+  local toplevel settings=() file rule prefix
+  toplevel="$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null || true)"
+  for file in "$HOME/.claude/settings.json" \
+              ${toplevel:+"$toplevel/.claude/settings.json" "$toplevel/.claude/settings.local.json"}; do
+    [[ -r "$file" ]] && settings+=("$file")
+  done
+  [[ ${#settings[@]} -gt 0 ]] || return 0
+
+  while IFS= read -r rule; do
+    if [[ "$rule" == *":*" || "$rule" == *" *" ]]; then
+      prefix="${rule%??}"
+      [[ "$prefix" == *"*"* ]] && continue
+      [[ "$prefix" == *[![:space:]][[:space:]][![:space:]]* ]] && ALLOW_PREFIXES+=("$prefix")
+    elif [[ "$rule" != *"*"* ]]; then
+      ALLOW_EXACT+=("$rule")
+    fi
+  done < <(jq -r '.permissions.allow[]? | strings
+                  | capture("^Bash\\((?<r>.+)\\)$").r' "${settings[@]}" 2>/dev/null || true)
+}
+
+is_allowed() { # $1 = one segment, trimmed
+  local rule
+  for rule in ${ALLOW_EXACT[@]+"${ALLOW_EXACT[@]}"}; do
+    [[ "$1" == "$rule" ]] && return 0
+  done
+  for rule in ${ALLOW_PREFIXES[@]+"${ALLOW_PREFIXES[@]}"}; do
+    [[ "$1" == "$rule" || "$1" == "$rule "* ]] && return 0
+  done
+  return 1
+}
+
+is_read_only() { # $1 = one segment, trimmed
+  local verb subcommand
+  read -r verb subcommand _ <<<"$1"
+  if [[ "$verb" == "git" ]]; then
+    [[ "$subcommand" =~ $GIT_READ_ONLY ]]
+  else
+    [[ "$verb" =~ $READ_ONLY ]]
+  fi
+}
+
+needs_no_judgment() { # $1 = the whole command line
   # `&&` chains two commands the same way a pipe does, and both are split and
   # judged below — so it is normalized to a pipe before the character check,
   # which leaves a bare `&` (backgrounding, and a second command after it)
@@ -70,25 +119,20 @@ is_read_only() { # $1 = the whole command line
     return 1
   fi
 
-  local segment verb
+  local segment
   # Only pipes survive the character check, so splitting on them covers every
   # chain that can reach here. `||` yields an empty piece, skipped below.
   while IFS= read -r segment; do
     segment="${segment#"${segment%%[![:space:]]*}"}"   # strip leading blanks
+    segment="${segment%"${segment##*[![:space:]]}"}"   # strip trailing blanks
     [[ -n "$segment" ]] || continue
-    read -r verb _ <<<"$segment"
-    if [[ "$verb" == "git" ]]; then
-      local subcommand
-      read -r _ subcommand _ <<<"$segment"
-      if [[ ! "$subcommand" =~ $GIT_READ_ONLY ]]; then return 1; fi
-    elif [[ ! "$verb" =~ $READ_ONLY ]]; then
-      return 1
-    fi
+    is_read_only "$segment" || is_allowed "$segment" || return 1
   done < <(printf '%s\n' "$line" | tr '|' '\n')
   return 0
 }
 
-if is_read_only "$COMMAND"; then exit 0; fi
+load_allow_rules
+if needs_no_judgment "$COMMAND"; then exit 0; fi
 
 BRANCH="$(git -C "$CWD" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")"
 STATE="$(jq -nc --arg c "$COMMAND" --arg d "$CWD" --arg b "$BRANCH" \

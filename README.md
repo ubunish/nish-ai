@@ -118,7 +118,7 @@ Graphs live in `~/.cache/codebase-memory-mcp/` (one `.db` per project, plus a sh
 
 `tests/router.sh` covers the Jev path through the session router: a confident judgment settles the category, a spread one names two tracks, a prompt that is only pasted material falls back to the five-way directive, and so does every failure path. Also covers the drift read on later prompts — the shift line above the threshold, silence below it, and no request at all for a prompt under twenty characters. Needs `jq` and `uv`.
 
-`tests/bash-gate.sh` covers the bash gate: the read-only prefilter passes `ls`, `git status` and read-only pipelines without spending a request, a redirection or a command substitution is judged rather than passed, a high probability returns `ask`, and a low one, a missing key, an API error or an uninstalled `jev` all stay silent. Needs `jq` and `uv`.
+`tests/bash-gate.sh` covers the bash gate: the read-only prefilter passes `ls`, `git status` and read-only pipelines without spending a request, a command matching a narrow `permissions.allow` rule passes while a bare-verb rule like `Bash(find:*)` does not, a redirection or a command substitution is judged rather than passed, a high probability returns `ask`, and a low one, a missing key, an API error or an uninstalled `jev` all stay silent. Needs `jq` and `uv`.
 
 Every request in these three suites goes to `tests/fixtures/jev-stub.py`, a local stand-in for the API, so they never touch the network and never spend an API call.
 
