@@ -11,7 +11,7 @@ Most nish-ai hooks either run a regex or inject text asking Claude to make a jud
 ```
               ┌──────────────── callers ────────────────┐
               │                                         │
-  router hook · drift hook · bash gate · commit gate · /cut · grill
+  router hook · drift hook · commit gate · /cut · grill
               │                                         │
               └────────────┬────────────────────────────┘
                            │  state on stdin + a question file
@@ -60,7 +60,6 @@ Each caller sets its own threshold against the cost of being wrong. These are th
 | Router | `category` Choice confidence | 0.75 | Settles the category; below it, two are named |
 | Router | `pasted_only` Noul | 0.50 | Drops the judgment, model reads the prompt itself |
 | Drift | `drifted` Noul | 0.70 | Injects the direction-shifted line |
-| Bash gate | `risky` Noul | 0.50 | Returns `ask`, surfacing the permission prompt |
 | Commit gate | security Nouls | 0.30 | Spawns the security reviewer |
 | Commit gate | principle Scores | 2.5 of 3, confidence 0.70 | All seven together skip the code reviewer |
 | Commit gate | `real` Noul on a finding | 0.50 | Below it, the finding is tagged `unverified` |
@@ -74,6 +73,4 @@ A reviewer skip is the one judgment that removes a check, so every one is logged
 
 ## Tests
 
-`../tests/jev.sh` covers the CLI and `replay`; `../tests/bash-gate.sh` and `../tests/router.sh` cover the two hooks. Every request in every suite goes to `../tests/fixtures/jev-stub.py`, so the tests never touch the network and never spend an API call.
-
-`../tests/bash-gate-calibrate.sh` is the exception, and is not part of any suite: it sends each labelled command in `../tests/fixtures/bash-gate-cases.tsv` to the live API and prints the highest `safe` and lowest `risky` score. Run it after changing `hooks/bash-gate.json`, and keep the bash gate's threshold in the gap between the two.
+`../tests/jev.sh` covers the CLI and `replay`; `../tests/router.sh` covers the router and drift hooks. Every request in every suite goes to `../tests/fixtures/jev-stub.py`, so the tests never touch the network and never spend an API call.

@@ -28,8 +28,6 @@ Two diagram renderers, split by skill. `nish-ai-project-planning` and `nish-ai-w
 | `./tests/style-toggle.sh` | Run the writing-style toggle test suite (no bats; needs `jq`) |
 | `./tests/jev.sh` | Run the jev CLI + replay test suite (no bats; needs `jq` + `uv`) |
 | `./tests/router.sh` | Run the router/drift judgment test suite (no bats; needs `jq` + `uv`) |
-| `./tests/bash-gate.sh` | Run the bash-gate test suite (no bats; needs `jq` + `uv`) |
-| `./tests/bash-gate-calibrate.sh` | Score the bash gate's question against labelled commands on the live Jev API (needs `TYPESAFE_API_KEY`) |
 
 ## Skills
 
@@ -122,9 +120,7 @@ Graphs live in `~/.cache/codebase-memory-mcp/` (one `.db` per project, plus a sh
 
 `tests/router.sh` covers the Jev path through the session router: a confident judgment settles the category, a spread one names two tracks, a prompt that is only pasted material falls back to the five-way directive, and so does every failure path. Also covers the drift read on later prompts — the shift line above the threshold, silence below it, and no request at all for a prompt under twenty characters. Needs `jq` and `uv`.
 
-`tests/bash-gate.sh` covers the bash gate: the read-only prefilter passes `ls`, `git status`, `mkdir` and their pipe, `&&` or `;` chains without spending a request, with `2>/dev/null`, `>/dev/null` and `2>&1` ignored, a command matching a narrow `permissions.allow` rule passes while a bare-verb rule like `Bash(find:*)` does not, a redirection or a command substitution is judged rather than passed, a high probability returns `ask`, and a low one, a missing key, an API error or an uninstalled `jev` all stay silent. Needs `jq` and `uv`.
-
-Every request in these three suites goes to `tests/fixtures/jev-stub.py`, a local stand-in for the API, so they never touch the network and never spend an API call.
+Every request in these two suites goes to `tests/fixtures/jev-stub.py`, a local stand-in for the API, so they never touch the network and never spend an API call.
 
 `tests/style-toggle.sh` covers the writing-style toggle: `drop style` / `verbose mode` set the off-flag, `resume style` / `style on` / `enable style` clear it, the per-turn reminder is emitted only while style is on, a phrase merely mentioned — quoted in a longer prompt, carried in `cwd` or `transcript_path`, or echoed by an agent task notification — does not toggle, and the raw-payload fallback still toggles when `jq` is absent. Runs against a throwaway `HOME`. Needs `jq`.
 
@@ -137,7 +133,6 @@ Every request in these three suites goes to `tests/fixtures/jev-stub.py`, a loca
 ./tests/style-toggle.sh
 ./tests/jev.sh
 ./tests/router.sh
-./tests/bash-gate.sh
 ```
 
 ## Repo Layout
@@ -150,12 +145,12 @@ nish-ai/
 ├── agents/                      reviewer subagents → ~/.claude/agents/
 │   ├── nish-ai-code-reviewer.md
 │   └── nish-ai-security-reviewer.md
-├── tests/                       hook + agent test suites (run.sh, uv.sh, agents.sh, statusline.sh, session-id.sh, style-toggle.sh, jev.sh, router.sh, bash-gate.sh)
+├── tests/                       hook + agent test suites (run.sh, uv.sh, agents.sh, statusline.sh, session-id.sh, style-toggle.sh, jev.sh, router.sh)
 ├── nish-ai-writing-style/      always-on prose style (+ hooks/)
 ├── nish-ai-uv/                 always-on "prefer uv" convention (+ hooks/)
 ├── nish-ai-github/             commit/branch/PR conventions (+ hooks/)
 ├── nish-ai-prompt-recognition/ session router (+ hooks/, jev/)
-├── nish-ai-jev/                typed judgments for hooks and gates (+ hooks/)
+├── nish-ai-jev/                typed judgments for hooks and gates
 ├── nish-ai-d2/                 d2 diagram authoring reference (loaded by name)
 └── nish-ai-categories/         skills dispatched by the router
     ├── nish-ai-coding/
@@ -318,7 +313,6 @@ Several hooks used to inject text asking Claude to make a small judgment — whi
 flowchart TD
     R["router hook<br/>category + pasted-only"] --> J["nish-ai-jev/jev"]
     D["drift hook<br/>has the session pivoted?"] --> J
-    B["bash gate<br/>hard to reverse?"] --> J
     G["commit gate<br/>6 security · 7 principles · prefix"] --> J
     C["/cut<br/>safety · payoff · coupling"] --> J
     P["planning grill<br/>auto-answer from past decisions"] --> J
@@ -333,7 +327,7 @@ flowchart TD
 
 **Data boundary.** `nish-ai-jev/allowlist` holds one glob per line, matched against the repo's git origin. The CLI enforces it, so every caller inherits it and none can opt out. A repo with an unknown origin, or none, never reaches the API. `TYPESAFE_API_KEY` comes from the shell profile — never this repo, never `settings.json`, never a command line.
 
-**Fail-open.** Every caller treats a non-zero exit as "Jev said nothing". The router emits its old five-way directive, the bash gate stays silent, the commit gate spawns the code reviewer, `/cut` presents the reviewer's own ranking, and the grill asks the user. A hook that cannot fall back does not call `jev`.
+**Fail-open.** Every caller treats a non-zero exit as "Jev said nothing". The router emits its old five-way directive, the commit gate spawns the code reviewer, `/cut` presents the reviewer's own ranking, and the grill asks the user. A hook that cannot fall back does not call `jev`.
 
 **Thresholds.** Each caller sets its own against the cost of being wrong, and `nish-ai-jev/replay` is how they move. Security thresholds are low and skip thresholds high on purpose: a wasted review costs a minute, a missed one costs more. The current values live in one place — the threshold table in [`nish-ai-jev/README.md`](nish-ai-jev/README.md) — so a change lands once.
 

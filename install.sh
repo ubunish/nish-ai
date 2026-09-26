@@ -59,15 +59,10 @@ UV_HOOK_MARKER='uv-pretooluse\.sh'
 UV_SS_CMD='bash "$HOME/.claude/skills/nish-ai-uv/hooks/uv-session-start.sh"'
 UV_SS_MARKER='uv-session-start\.sh'
 
-# Bash risk gate: PreToolUse on Bash. The permission allowlist can only ever say
-# yes to prefixes someone thought of in advance; this covers the rest. A regex
-# prefilter passes read-only commands for free, and anything else gets one Jev
-# judgment — a high probability returns "ask", which surfaces the normal
-# permission prompt. Silent on every failure, so a missing key or an
-# off-allowlist repo leaves the tool call exactly as it was.
-JEV_GATE_CMD='bash "$HOME/.claude/skills/nish-ai-jev/hooks/bash-gate.sh"'
+# Retired Jev bash gate. It added permission prompts on top of auto mode's own
+# risk checks, so it was removed. The marker stays so install and uninstall
+# strip the hook from a settings.json written by an older install.
 JEV_GATE_MARKER='bash-gate\.sh'
-JEV_GATE_MATCHER='Bash'
 
 # Coding-principles anchor: PreToolUse on Edit|Write, injects the build ladder
 # and seven principles as additionalContext on the first source-file edit of a
@@ -884,24 +879,8 @@ status_auto_memory() {
   fi
 }
 
-install_jev_hook() {
-  add_hook PreToolUse "$JEV_GATE_CMD" "$JEV_GATE_MARKER" "jev bash gate" "$JEV_GATE_MATCHER"
-}
-
-uninstall_jev_hook() {
-  remove_hook PreToolUse "$JEV_GATE_MARKER" "jev bash gate"
-}
-
-status_jev_hook() {
-  if [[ ! -f "$SETTINGS_FILE" ]] || ! command -v jq >/dev/null; then
-    printf "  %-10s jev bash gate (cannot verify)\n" "unknown"
-    return
-  fi
-  if hook_installed_for PreToolUse "$JEV_GATE_MARKER"; then
-    printf "  %-10s jev bash gate (PreToolUse)\n" "installed"
-  else
-    printf "  %-10s jev bash gate (PreToolUse)\n" "missing"
-  fi
+remove_retired_jev_gate() {
+  remove_hook PreToolUse "$JEV_GATE_MARKER" "retired jev bash gate"
 }
 
 install_coding_hook() {
@@ -932,7 +911,7 @@ cmd_install() {
   install_style_hooks
   install_github_hook
   install_uv_hook
-  install_jev_hook
+  remove_retired_jev_gate
   install_coding_hook
   install_statusline
   install_plugin
@@ -950,7 +929,7 @@ cmd_uninstall() {
   uninstall_style_hooks
   uninstall_github_hook
   uninstall_uv_hook
-  uninstall_jev_hook
+  remove_retired_jev_gate
   uninstall_coding_hook
   uninstall_statusline
   uninstall_plugin
@@ -968,7 +947,6 @@ cmd_status() {
   status_style_hooks
   status_github_hook
   status_uv_hook
-  status_jev_hook
   status_coding_hook
   status_statusline
   status_plugin
