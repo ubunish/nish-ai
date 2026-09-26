@@ -2,12 +2,12 @@
   "risky": {
     "type": "noul",
     "instructions": {
-      "question": "Would running `command` in `cwd` on branch `branch` be hard to reverse, or would it reach outside this machine?",
-      "note": "Judge the command as written. A command that only reads, lists, searches, or prints is neither."
+      "question": "Would running `command` in `cwd` on branch `branch` lose work that git cannot bring back, change this machine outside the repo, or publish something beyond pushing commits to the repo's own remote?",
+      "note": "Judge the command as written. Editing, creating or committing files tracked in the repo is recoverable through git, and pushing commits without force is the normal workflow. Uncommitted changes are the exception: git holds no copy of them, so a command that discards them loses work for good."
     },
     "criteria": {
-      "true": "It deletes, overwrites, or truncates something; rewrites or discards history; installs, uninstalls, or changes system state; or publishes, sends, or deploys something other people will see.",
-      "false": "It reads, lists, searches, prints, or builds locally, and running it twice leaves the machine as it was."
+      "true": "It deletes or overwrites files outside the repo or files git does not track; discards uncommitted work (reset --hard, checkout --, clean -f, stash drop); force-pushes or rewrites published history; installs, uninstalls or changes system state (sudo, /etc, global packages, dotfiles in ~); or publishes, sends or deploys something beyond a plain push (a release, a package, a message, a production deploy).",
+      "false": "It reads, lists, searches, builds or tests locally; edits, creates or commits files inside the repo; or pushes commits to the repo's own remote without force."
     }
   }
 }

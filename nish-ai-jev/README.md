@@ -75,3 +75,5 @@ A reviewer skip is the one judgment that removes a check, so every one is logged
 ## Tests
 
 `../tests/jev.sh` covers the CLI and `replay`; `../tests/bash-gate.sh` and `../tests/router.sh` cover the two hooks. Every request in every suite goes to `../tests/fixtures/jev-stub.py`, so the tests never touch the network and never spend an API call.
+
+`../tests/bash-gate-calibrate.sh` is the exception, and is not part of any suite: it sends each labelled command in `../tests/fixtures/bash-gate-cases.tsv` to the live API and prints the highest `safe` and lowest `risky` score. Run it after changing `hooks/bash-gate.json`, and keep the bash gate's threshold in the gap between the two.

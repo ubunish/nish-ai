@@ -29,6 +29,7 @@ Two diagram renderers, split by skill. `nish-ai-project-planning` and `nish-ai-w
 | `./tests/jev.sh` | Run the jev CLI + replay test suite (no bats; needs `jq` + `uv`) |
 | `./tests/router.sh` | Run the router/drift judgment test suite (no bats; needs `jq` + `uv`) |
 | `./tests/bash-gate.sh` | Run the bash-gate test suite (no bats; needs `jq` + `uv`) |
+| `./tests/bash-gate-calibrate.sh` | Score the bash gate's question against labelled commands on the live Jev API (needs `TYPESAFE_API_KEY`) |
 
 ## Skills
 
