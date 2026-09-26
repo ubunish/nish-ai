@@ -127,6 +127,15 @@ NARROW="$(printf '%s' "$(payload 42 '')" | env HOME="$TMPHOME" COLUMNS=20 TERM=d
 assert_contains "narrow keeps badge" "42%" "$NARROW"
 assert_missing  "narrow does not wrap" $'\n' "$NARROW"
 
+echo "right margin"
+# Claude Code indents the status line; filling every column clips the badge.
+WIDE="$(printf '%s' "$(payload 42 '')" | env HOME="$TMPHOME" COLUMNS=120 TERM=dumb \
+  LC_ALL=en_US.UTF-8 bash "$STATUSLINE" 2>/dev/null | sed $'s/\e\\[[0-9;]*m//g')"
+assert_contains "wide keeps badge" "42%" "$WIDE"
+WIDE_LEN="$(LC_ALL=en_US.UTF-8 bash -c 'printf "%s" "${#1}"' _ "$WIDE")"
+((WIDE_LEN == 118)) && ok "line leaves 2-column margin" \
+  || bad "line leaves 2-column margin" "expected width 118, got $WIDE_LEN"
+
 echo
 echo "passed: $PASS  failed: $FAIL"
 [[ "$FAIL" -eq 0 ]]

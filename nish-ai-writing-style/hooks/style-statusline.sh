@@ -139,9 +139,12 @@ if [[ -n "$USAGE" ]]; then
   # terminal, so the whole pipeline's stderr is muted, not just stty's.
   COLS="$({ stty size </dev/tty | cut -d' ' -f2; } 2>/dev/null || true)"
   [[ "$COLS" =~ ^[0-9]+$ ]] || COLS="$(tput cols 2>/dev/null || true)"
+  # Claude Code indents the status line, so a line that fills every column
+  # overflows and the flush-right badge is clipped in narrow windows.
+  RIGHT_MARGIN=2
   GAP=-1
   if [[ "$COLS" =~ ^[0-9]+$ ]]; then
-    GAP=$((COLS - $(visible_width "$LINE") - $(visible_width "$USAGE")))
+    GAP=$((COLS - RIGHT_MARGIN - $(visible_width "$LINE") - $(visible_width "$USAGE")))
   fi
   if ((GAP >= 1)); then
     LINE="${LINE}$(printf '%*s' "$GAP" '')${USAGE}"
