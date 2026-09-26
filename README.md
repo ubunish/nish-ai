@@ -56,6 +56,7 @@ Symlinked into `~/.claude/commands/` by `install.sh`.
 | Command | Action |
 |---------|--------|
 | `/merge` | Merge the current branch into `main` without a PR, push, and delete the branch (local + remote) |
+| `/progress` | Report progress on the current task: percent complete, estimated time left, what is done, what is next, and any blockers |
 | `/cut` | Audit the whole repository for deletable code — spawns the code reviewer in repo mode for a deletion-only pass, then re-ranks the candidates with Jev on safety, payoff and coupling |
 
 ## Agents
