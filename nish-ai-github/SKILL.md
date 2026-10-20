@@ -80,6 +80,10 @@ git pull --ff-only                                own call
 Never write `--admin` as a `||` fallback. A pre-emptive bypass reads as merging
 without review, and the classifier blocks it.
 
+Run git from inside the repo (`cd <repo> && git push`), never `git -C <path>`.
+Allow rules match by prefix, so `git -C <path> push` misses `Bash(git push:*)`
+and goes to the classifier.
+
 ## Branches
 
 `main` — canonical, finished, merged. Personal repos work directly on `main`:
