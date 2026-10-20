@@ -65,6 +65,21 @@ Admin bypass (`gh pr merge --admin`) is allowed when a required-review rule is
 the only blocker — solo repos have no second reviewer. It is never used to get
 past a failing check.
 
+Ship commands run one per Bash call, never chained. An allow rule applies only
+when every part of a chained command matches one, so chaining the merge with an
+uncovered command sends it to the auto mode classifier, which denies it.
+
+```
+gh pr merge <n> --squash --delete-branch          own call, plain
+gh pr merge <n> --squash --delete-branch --admin  own call, only after the plain
+                                                  merge failed on a required review
+git switch main                                   own call
+git pull --ff-only                                own call
+```
+
+Never write `--admin` as a `||` fallback. A pre-emptive bypass reads as merging
+without review, and the classifier blocks it.
+
 ## Branches
 
 `main` — canonical, finished, merged. Personal repos work directly on `main`:
@@ -94,8 +109,11 @@ git push -u origin <branch>
   → gh pr create --title "<prefix: short phrase>" --body-file <body>
   → gh pr checks --watch
   → green: gh pr merge --squash --delete-branch (add --admin only for a review rule)
+           → git switch main → git pull --ff-only
   → red:   stop, report the failing check, do not merge
 ```
+
+Each arrow is its own Bash call, per the ship rule above.
 
 Title: same format as a commit. `prefix: short phrase`.
 

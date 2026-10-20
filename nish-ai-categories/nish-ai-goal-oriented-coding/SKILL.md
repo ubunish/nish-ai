@@ -57,7 +57,7 @@ The `/execute` slash command runs this same workflow on the latest `plans/*.md` 
 8. **Loop** until all steps complete
 9. **Ship** (per `nish-ai-github`):
    - On `main`: `git push`.
-   - On a branch: `git push -u origin <branch>` → `gh pr create` → `gh pr checks --watch` → green: `gh pr merge --squash --delete-branch` (`--admin` only for a review rule) → red: stop, report the failing check, leave the PR open.
+   - On a branch: `git push -u origin <branch>` → `gh pr create` → `gh pr checks --watch` → green: `gh pr merge --squash --delete-branch` (`--admin` only for a review rule) → red: stop, report the failing check, leave the PR open. Each command is its own Bash call, never chained (see `nish-ai-github`).
    - Never force-push. Never merge red.
 
 10. **Assert the remote state**: run the check below and read its output before writing the handoff.
