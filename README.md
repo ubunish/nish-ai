@@ -28,6 +28,7 @@ Two diagram renderers, split by skill. `nish-ai-project-planning` and `nish-ai-w
 | `./tests/style-toggle.sh` | Run the writing-style toggle test suite (no bats; needs `jq`) |
 | `./tests/jev.sh` | Run the jev CLI + replay test suite (no bats; needs `jq` + `uv`) |
 | `./tests/router.sh` | Run the router/drift judgment test suite (no bats; needs `jq` + `uv`) |
+| `./tests/sessions.sh` | Run the session coordination test suite (no bats; needs `jq`, `git` + `uv`) |
 
 ## Skills
 
@@ -46,6 +47,7 @@ Two diagram renderers, split by skill. `nish-ai-project-planning` and `nish-ai-w
 | `nish-ai-uv` | Auto-active "prefer uv" convention + SessionStart anchor + PreToolUse enforcement hook |
 | `nish-ai-d2` | d2 diagram authoring reference, loaded by name by `nish-ai-documentation` |
 | `nish-ai-jev` | Typed judgments for hooks and gates via TypeSafe's Jev, loaded by name |
+| `nish-ai-sessions` | Coordination between parallel sessions on one repo: worktree on collision, sync when `main` moves, work claims, dashboard |
 
 ## Slash Commands
 
@@ -85,6 +87,7 @@ The rule of thumb: auto-allow the read-only and local-reversible work; let every
 | 3 | allow | `ls`, `cat`, `pwd`, `which`, `find`, `head`, `tail`, `wc`, `file`, `tree` — read-only shell |
 | 4 | allow | `npm test\|run`, `pytest`, `ruff`, `eslint`, `tsc`, `uv run` — test/lint/build, no network |
 | 5 | allow | `git push`, `gh pr create\|view\|checks\|merge` — ship, gated by the commit gate and CI |
+| 6 | allow | `nish-session claim\|claims` — session coordination; local state, plus a Jev request for an allowlisted origin |
 
 Tiers 3-4 never touch the network and read project code only. Network installs and arbitrary remote execution (`npm install`, `npx`, `uvx`, `pip install`, ...) are deliberately left off the allow list — they pull and run remote code, so they keep prompting as a supply-chain guard.
 
@@ -122,7 +125,9 @@ Graphs live in `~/.cache/codebase-memory-mcp/` (one `.db` per project, plus a sh
 
 `tests/router.sh` covers the Jev path through the session router: a confident judgment settles the category, a spread one names two tracks, a prompt that is only pasted material falls back to the five-way directive, and so does every failure path. Also covers the drift read on later prompts — the shift line above the threshold, silence below it, and no request at all for a prompt under twenty characters. Needs `jq` and `uv`.
 
-Every request in these two suites goes to `tests/fixtures/jev-stub.py`, a local stand-in for the API, so they never touch the network and never spend an API call.
+`tests/sessions.sh` covers the session coordination layer against a throwaway `HOME`, a fake session registry backed by live and reaped pids, and throwaway git repos with a bare origin. It exercises `nish-session` (peers across worktrees, excluding self, dead pids and other repos; inbox emit and drain under concurrent writes; the state lock), the worktree-on-collision instruction, `main_moved` detection across ship commands, sync on receive (fast-forward, rebase, merge, and the dirty, diverged, detached and conflict paths), work claims judged by Jev, the dashboard collector, and the install and uninstall wiring with `curl` stubbed out. Needs `jq`, `git` and `uv`.
+
+Every request in the `jev.sh`, `router.sh` and `sessions.sh` suites goes to `tests/fixtures/jev-stub.py`, a local stand-in for the API, so they never touch the network and never spend an API call.
 
 `tests/style-toggle.sh` covers the writing-style toggle: `drop style` / `verbose mode` set the off-flag, `resume style` / `style on` / `enable style` clear it, the per-turn reminder is emitted only while style is on, a phrase merely mentioned — quoted in a longer prompt, carried in `cwd` or `transcript_path`, or echoed by an agent task notification — does not toggle, and the raw-payload fallback still toggles when `jq` is absent. Runs against a throwaway `HOME`. Needs `jq`.
 
@@ -135,6 +140,7 @@ Every request in these two suites goes to `tests/fixtures/jev-stub.py`, a local 
 ./tests/style-toggle.sh
 ./tests/jev.sh
 ./tests/router.sh
+./tests/sessions.sh
 ```
 
 ## Repo Layout
@@ -147,12 +153,13 @@ nish-ai/
 ├── agents/                      reviewer subagents → ~/.claude/agents/
 │   ├── nish-ai-code-reviewer.md
 │   └── nish-ai-security-reviewer.md
-├── tests/                       hook + agent test suites (run.sh, uv.sh, agents.sh, statusline.sh, session-id.sh, style-toggle.sh, jev.sh, router.sh)
+├── tests/                       hook + agent test suites (run.sh, uv.sh, agents.sh, statusline.sh, session-id.sh, style-toggle.sh, jev.sh, router.sh, sessions.sh)
 ├── nish-ai-writing-style/      always-on prose style (+ hooks/)
 ├── nish-ai-uv/                 always-on "prefer uv" convention (+ hooks/)
 ├── nish-ai-github/             commit/branch/PR conventions (+ hooks/)
 ├── nish-ai-prompt-recognition/ session router (+ hooks/, jev/)
 ├── nish-ai-jev/                typed judgments for hooks and gates
+├── nish-ai-sessions/           parallel-session coordination (+ bin/, hooks/, jev/, dash/)
 ├── nish-ai-d2/                 d2 diagram authoring reference (loaded by name)
 └── nish-ai-categories/         skills dispatched by the router
     ├── nish-ai-coding/
@@ -335,6 +342,37 @@ flowchart TD
 **Thresholds.** Each caller sets its own against the cost of being wrong, and `nish-ai-jev/replay` is how they move. Security thresholds are low and skip thresholds high on purpose: a wasted review costs a minute, a missed one costs more. The current values live in one place — the threshold table in [`nish-ai-jev/README.md`](nish-ai-jev/README.md) — so a change lands once.
 
 See [`nish-ai-jev/README.md`](nish-ai-jev/README.md) for the CLI contract, the thresholds, and the question-design rules.
+
+### Session Coordination
+
+Several terminal tabs often run Claude on the same repo at once. Without coordination they share one checkout, a merge in one tab leaves the others on a stale base, and two tabs can fix the same bug. `nish-ai-sessions` adds the conditions for when sessions should hear about each other. Claude Code's own registry (`~/.claude/sessions/<pid>.json`) says which sessions are live; `nish-session` keeps an inbox per session and a claims file per repo under `~/.claude/nish-ai-sessions/`.
+
+```mermaid
+flowchart TD
+    S["SessionStart"] --> P{"live peer in<br/>this repo?"}
+    P -->|no| Q["silent"]
+    P -->|"yes, same checkout,<br/>started earlier"| W["EnterWorktree + claim before off-goal fixes"]
+    P -->|"yes, elsewhere"| C["claim before off-goal fixes"]
+
+    M["PostToolUse: gh pr merge<br/>or git push to main"] --> E["main_moved → each peer's inbox"]
+    E --> U["peer's next prompt"]
+    U --> T{"tree clean?"}
+    T -->|yes| Y["ff · rebase · merge<br/>inject changed files"]
+    T -->|no| N["note once, retry each prompt"]
+
+    K["nish-session claim topic"] --> J["Jev: overlaps a live claim?"]
+    J -->|yes| O["owned by name"]
+    J -->|no| L["clear"]
+    J -.fails.-> F["print live claims, exit 0"]
+```
+
+**Working on `main` stays the default.** A worktree is used only when another live session already holds the checkout; a session that moved into one ships with `git push origin HEAD:main` and leaves with `ExitWorktree` (see `nish-ai-github`).
+
+**No tokens unless an event concerns the session.** Each hook exits silently when there is no peer, no event and no claim to judge, so a solo session pays nothing. Only merges made by Claude sessions are seen; nothing polls the remote.
+
+**Model-facing text is fixed.** Peer names, paths and event fields never reach injected context. Branch and file names that do are cut to one plain-charset word and labelled as data.
+
+The dashboard is a read-only TUI over the same state: `uv run ~/.claude/skills/nish-ai-sessions/dash/dash.py`. See [`nish-ai-sessions/SKILL.md`](nish-ai-sessions/SKILL.md) for the CLI, the hooks and the state layout.
 
 ### Categories
 
