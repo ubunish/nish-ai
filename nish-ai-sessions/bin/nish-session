@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+# nish-session — shared coordination state for parallel Claude sessions on one
+# repo. Hooks call it; nothing here spends a Claude turn.
+#
+#   nish-session peers [--cwd DIR] [--self SID]   live sessions sharing DIR's repo, one JSON object per line
+#   nish-session emit SID < event.json            append one event to SID's inbox
+#   nish-session drain SID                        print SID's pending events and clear them
+#
+# Liveness comes from Claude Code's own registry (~/.claude/sessions/<pid>.json)
+# plus kill -0: a session that exits stops counting even if its registry file
+# is left behind. Coordination state lives under ~/.claude/nish-ai-sessions/.
+# Needs git 2.31+ for --path-format.
+set -euo pipefail
+umask 077
+
+REGISTRY="$HOME/.claude/sessions"
+STATE="$HOME/.claude/nish-ai-sessions"
+INBOX="$STATE/inbox"
+LOCK="$STATE/.lock"
+LOCK_TRIES=100   # x 0.02s: two seconds before a held lock is taken as stale
+
+die() { printf 'nish-session: %s\n' "$1" >&2; exit 1; }
+
+# The id becomes a path segment, so keep it to characters a segment may safely
+# hold — a "../" would otherwise escape the inbox dir.
+safe_id() { printf '%s' "$1" | tr -cd 'A-Za-z0-9_-'; }
+
+# Worktrees of one repo share a git common dir, so it is the repo's identity.
+common_dir() { git -C "$1" rev-parse --path-format=absolute --git-common-dir 2>/dev/null; }
+
+ensure_state() { mkdir -p "$INBOX"; }
+
+# An emit's append and a drain's read-then-delete must not interleave, or an
+# event written between the read and the delete is lost. mkdir is atomic and
+# stock macOS has no flock. The holder's pid is kept inside the lock, so one
+# still held after LOCK_TRIES is taken over only when its holder is gone; a
+# live holder makes this call fail rather than run unlocked.
+take_lock() {
+  mkdir "$LOCK" 2>/dev/null || return 1
+  printf '%s' "$$" > "$LOCK/pid"
+  trap 'rm -f "$LOCK/pid"; rmdir "$LOCK" 2>/dev/null' EXIT
+}
+
+lock_state() {
+  local try holder
+  for ((try = 0; try < LOCK_TRIES; try++)); do
+    take_lock && return
+    sleep 0.02
+  done
+  holder="$(cat "$LOCK/pid" 2>/dev/null || true)"
+  if [[ "$holder" =~ ^[0-9]+$ ]] && kill -0 "$holder" 2>/dev/null; then
+    die "state locked by live pid $holder"
+  fi
+  # tradeoff: two callers timing out on the same dead holder can both take
+  # over, and one event may be lost; it needs a crashed holder plus two
+  # simultaneous timeouts. Serialize takeovers with a second lock if it bites.
+  rm -f "$LOCK/pid"; rmdir "$LOCK" 2>/dev/null || true
+  take_lock || die "state lock contended"
+}
+
+cmd_peers() {
+  local cwd="$PWD" self="${CLAUDE_CODE_SESSION_ID:-}"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --cwd)  cwd="${2:-}"; shift 2 ;;
+      --self) self="${2:-}"; shift 2 ;;
+      *)      die "unknown flag: $1" ;;
+    esac
+  done
+
+  [[ "$cwd" == /* ]] || cwd="$PWD/$cwd"
+  local repo; repo="$(common_dir "$cwd")" || return 0
+  [[ -d "$REGISTRY" ]] || return 0
+
+  local file pid sid peer_cwd toplevel
+  for file in "$REGISTRY"/*.json; do
+    [[ -f "$file" ]] || continue
+    IFS=$'\t' read -r pid sid peer_cwd < <(jq -r '[.pid, .sessionId, .cwd] | @tsv' "$file" 2>/dev/null) || continue
+    [[ "$sid" != "$self" ]] || continue
+    [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null || continue
+    # An empty cwd would make git -C fall back to this process's own directory.
+    [[ "$peer_cwd" == /* && -d "$peer_cwd" ]] || continue
+    [[ "$(common_dir "$peer_cwd")" == "$repo" ]] || continue
+    toplevel="$(git -C "$peer_cwd" rev-parse --show-toplevel 2>/dev/null)" || toplevel=""
+    jq -c --arg t "$toplevel" \
+      '{pid, session_id: .sessionId, name, cwd, status, started_at: .startedAt, toplevel: $t}' "$file"
+  done
+}
+
+cmd_emit() {
+  local sid; sid="$(safe_id "${1:-}")"
+  [[ -n "$sid" ]] || die "usage: nish-session emit SID < event.json"
+  local event
+  event="$(jq -ce --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" 'select(type == "object") | . + {ts: $ts}' 2>/dev/null)" \
+    || die "event is not a JSON object"
+
+  ensure_state
+  local box="$INBOX/$sid.jsonl"
+  # An append through a symlink would write into whatever file it points at.
+  [[ ! -L "$box" ]] || die "refusing a symlinked inbox"
+  lock_state
+  printf '%s\n' "$event" >> "$box"
+}
+
+cmd_drain() {
+  local sid; sid="$(safe_id "${1:-}")"
+  [[ -n "$sid" ]] || die "usage: nish-session drain SID"
+  local box="$INBOX/$sid.jsonl"
+  [[ -f "$box" && ! -L "$box" ]] || return 0
+  lock_state
+  cat "$box"
+  rm -f "$box"
+}
+
+command -v jq  >/dev/null || die "jq not found"
+command -v git >/dev/null || die "git not found"
+
+case "${1:-}" in
+  peers) shift; cmd_peers "$@" ;;
+  emit)  shift; cmd_emit "$@" ;;
+  drain) shift; cmd_drain "$@" ;;
+  *)     die "usage: nish-session {peers|emit|drain} ..." ;;
+esac
