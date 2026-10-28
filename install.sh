@@ -143,11 +143,19 @@ D2_INSTALL_URL='https://d2lang.com/install.sh'
 # `git rebase` joins tier 2 on the same reasoning as the rest of local git: it
 # rewrites only local history, and the reflog makes it recoverable.
 #
+# Allow rules alone do not clear `gh pr merge --admin` in auto mode: the
+# classifier's built-in soft_deny "Merge Without Review" names the --admin arm
+# and fires anyway. A soft_deny yields to an autoMode.allow exception, so
+# AUTO_MODE_ALLOW_JSON adds one, scoped to the review gate only. Failing or
+# pending checks stay blocked. `$defaults` is kept ahead of it whenever the key
+# is created, so the built-in allow list is extended rather than replaced.
+#
 # Nothing is denied by default — anything outside the allow list (reset --hard,
 # rm -rf, ...) falls through to a normal prompt rather than a hard block. Add
 # specific entries to PERM_DENY_JSON if a hard block is ever wanted.
 PERM_ALLOW_JSON='["Read","Grep","Glob","WebSearch","WebFetch","Edit","Write","Bash(cd:*)","Bash(git status:*)","Bash(git diff:*)","Bash(git log:*)","Bash(git show:*)","Bash(git branch:*)","Bash(git add:*)","Bash(git commit:*)","Bash(git checkout:*)","Bash(git switch:*)","Bash(git merge:*)","Bash(git rebase:*)","Bash(git push:*)","Bash(git fetch:*)","Bash(git pull:*)","Bash(gh pr create:*)","Bash(gh pr view:*)","Bash(gh pr checks:*)","Bash(gh pr merge:*)","Bash(gh run list:*)","Bash(gh run view:*)","Bash(ls:*)","Bash(cat:*)","Bash(pwd)","Bash(which:*)","Bash(find:*)","Bash(head:*)","Bash(tail:*)","Bash(wc:*)","Bash(file:*)","Bash(tree:*)","Bash(npm test:*)","Bash(npm run:*)","Bash(pytest:*)","Bash(ruff:*)","Bash(eslint:*)","Bash(tsc:*)","Bash(uv run:*)"]'
 PERM_DENY_JSON='[]'
+AUTO_MODE_ALLOW_JSON='["Admin Merge: `gh pr merge --admin` (any merge strategy, with or without --delete-branch) on a PR the agent opened or worked on in this session is NOT Merge Without Review or CI Bypass. The user owns these repos and is often the only CODEOWNER, so a required review cannot be met by anyone else; --admin is the user'"'"'s standing instruction for clearing a review rule. This covers the review gate only: every required check must have passed (e.g. confirmed with `gh pr checks`), and merging with failing or pending checks is still blocked."]'
 
 require_jq() {
   command -v jq >/dev/null || { echo "jq required (brew install jq)" >&2; exit 1; }
@@ -779,9 +787,10 @@ uninstall_auto_memory() {
 
 permissions_installed() {
   [[ -f "$SETTINGS_FILE" ]] || return 1
-  jq -e --argjson a "$PERM_ALLOW_JSON" --argjson d "$PERM_DENY_JSON" '
+  jq -e --argjson a "$PERM_ALLOW_JSON" --argjson d "$PERM_DENY_JSON" --argjson m "$AUTO_MODE_ALLOW_JSON" '
     (($a - (.permissions.allow // [])) | length) == 0
     and (($d - (.permissions.deny // [])) | length) == 0
+    and (($m - (.autoMode.allow // [])) | length) == 0
   ' "$SETTINGS_FILE" >/dev/null
 }
 
@@ -796,10 +805,11 @@ install_permissions() {
   # Append only the entries we don't already have, preserving existing order and
   # any rules the user added themselves.
   local tmp; tmp="$(mktemp)"
-  jq --argjson a "$PERM_ALLOW_JSON" --argjson d "$PERM_DENY_JSON" '
+  jq --argjson a "$PERM_ALLOW_JSON" --argjson d "$PERM_DENY_JSON" --argjson m "$AUTO_MODE_ALLOW_JSON" '
     .permissions //= {}
     | .permissions.allow = ((.permissions.allow // []) + ($a - (.permissions.allow // [])))
     | .permissions.deny  = ((.permissions.deny  // []) + ($d - (.permissions.deny  // [])))
+    | .autoMode.allow = ((.autoMode.allow // ["$defaults"]) + ($m - (.autoMode.allow // [])))
   ' "$SETTINGS_FILE" > "$tmp"
   mv "$tmp" "$SETTINGS_FILE"
   echo "  add    permission rules -> $SETTINGS_FILE"
@@ -810,8 +820,13 @@ uninstall_permissions() {
   require_jq
   # Remove exactly our entries; leave user-added rules and drop now-empty keys.
   local tmp; tmp="$(mktemp)"
-  jq --argjson a "$PERM_ALLOW_JSON" --argjson d "$PERM_DENY_JSON" '
-    if .permissions then
+  jq --argjson a "$PERM_ALLOW_JSON" --argjson d "$PERM_DENY_JSON" --argjson m "$AUTO_MODE_ALLOW_JSON" '
+    (if .autoMode.allow then
+      .autoMode.allow -= $m
+      | (if (.autoMode.allow - ["$defaults"]) == [] then del(.autoMode.allow) else . end)
+      | (if .autoMode == {} then del(.autoMode) else . end)
+    else . end)
+    | if .permissions then
       .permissions.allow = ((.permissions.allow // []) - $a)
       | .permissions.deny  = ((.permissions.deny  // []) - $d)
       | (if (.permissions.allow // []) == [] then del(.permissions.allow) else . end)
@@ -829,15 +844,15 @@ status_permissions() {
     return
   fi
   local miss
-  miss="$(jq -r --argjson a "$PERM_ALLOW_JSON" --argjson d "$PERM_DENY_JSON" \
-    '(($a - (.permissions.allow // [])) + ($d - (.permissions.deny // []))) | length' \
+  miss="$(jq -r --argjson a "$PERM_ALLOW_JSON" --argjson d "$PERM_DENY_JSON" --argjson m "$AUTO_MODE_ALLOW_JSON" \
+    '(($a - (.permissions.allow // [])) + ($d - (.permissions.deny // [])) + ($m - (.autoMode.allow // []))) | length' \
     "$SETTINGS_FILE")"
   if [[ "$miss" == "0" ]]; then
-    printf "  %-10s permission rules (allow+deny)\n" "installed"
+    printf "  %-10s permission rules (allow+deny+autoMode)\n" "installed"
   elif jq -e 'has("permissions")' "$SETTINGS_FILE" >/dev/null; then
     printf "  %-10s permission rules (%s entries absent)\n" "partial" "$miss"
   else
-    printf "  %-10s permission rules (allow+deny)\n" "missing"
+    printf "  %-10s permission rules (allow+deny+autoMode)\n" "missing"
   fi
 }
 
