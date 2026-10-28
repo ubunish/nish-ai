@@ -65,7 +65,7 @@ uv run ~/.claude/skills/nish-ai-sessions/dash/dash.py
 | claims | Every live claim across repos: session, goal or claim, topic |
 | recent events | The last 20 entries of `events.jsonl`, which `emit` appends to and trims to 500 lines once it passes 1000 |
 
-`dash/state.py` collects the state with the standard library only, so it runs and is tested without the TUI's dependencies; `uv run --no-project dash/state.py` prints it as JSON. The TUI collects in a worker thread with one git call per distinct checkout, so a slow mount delays a refresh rather than freezing the screen. Its `nish-tui` dependency is pinned to a commit.
+`dash/state.py` collects the state with the standard library only, so it runs and is tested without the TUI's dependencies; `uv run --no-project dash/state.py` prints it as JSON. The TUI collects in a worker thread with two git calls per distinct checkout, so a slow mount delays a refresh rather than freezing the screen. Its `nish-tui` dependency is pinned to a commit.
 
 ## State Safety
 

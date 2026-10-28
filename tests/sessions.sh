@@ -475,6 +475,16 @@ assert_eq "checkout label names a worktree" "wt (worktree)" "$(label '{"branch":
 assert_eq "checkout label for a plain branch" "main" "$(label '{"branch":"main","worktree":false}')"
 assert_eq "checkout label outside a repo" "-" "$(label '{"branch":"","worktree":false}')"
 
+mkdir -p "$SANDBOX/unborn"; git_quiet -C "$SANDBOX/unborn" init
+start_live; register "$LIVE" unborn "$SANDBOX/unborn" unborn
+assert_eq "repo with no commits still shows repo and branch" "unborn main" \
+  "$(uv run --no-project "$STATE_PY" | jq -r '.sessions[] | select(.name == "unborn") | "\(.repo) \(.branch)"')"
+git_quiet -C "$RX" checkout --detach
+start_live; register "$LIVE" detached "$RX" detached
+assert_eq "detached checkout shows HEAD" "HEAD" \
+  "$(uv run --no-project "$STATE_PY" | jq -r '.sessions[] | select(.name == "detached") | .branch')"
+git_quiet -C "$RX" switch main
+
 start_live
 printf '{"pid":%s,"sessionId":"odd","cwd":5,"startedAt":"soon","name":["x"]}\n' "$LIVE" > "$REGISTRY/odd.json"
 printf '{"pid":%s,"sessionId":"huge","cwd":"/"}\n' "$((2**40))" > "$REGISTRY/huge.json"

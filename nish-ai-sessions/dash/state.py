@@ -69,24 +69,31 @@ def _text(value: object) -> str:
     return value if isinstance(value, str) else ""
 
 
+def _git_lines(cwd: str, *args: str) -> list[str] | None:
+    try:
+        done = subprocess.run(["git", "-C", cwd, *args], capture_output=True, text=True, timeout=2)
+    except (OSError, subprocess.TimeoutExpired, ValueError):  # ValueError: undecodable output or a NUL in cwd
+        return None
+    return done.stdout.splitlines() if done.returncode == 0 else None
+
+
 def checkout(cwd: str) -> dict:
-    """Repo name, branch, and whether cwd is a linked worktree, from one git call."""
+    """Repo name, branch, and whether cwd is a linked worktree."""
     # An empty or relative cwd would make git -C fall back to this process's dir.
     if not cwd.startswith("/"):
         return dict(NO_CHECKOUT)
-    try:
-        done = subprocess.run(
-            ["git", "-C", cwd, "rev-parse", "--path-format=absolute",
-             "--git-dir", "--git-common-dir", "--abbrev-ref", "HEAD"],
-            capture_output=True, text=True, timeout=2,
-        )
-    except (OSError, subprocess.TimeoutExpired):
+    dirs = _git_lines(cwd, "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir")
+    if not dirs or len(dirs) != 2:
         return dict(NO_CHECKOUT)
-    lines = done.stdout.splitlines()
-    if done.returncode != 0 or len(lines) != 3:
-        return dict(NO_CHECKOUT)
-    git_dir, common_dir, branch = lines
-    return {"repo": Path(common_dir).parent.name, "branch": branch, "worktree": git_dir != common_dir}
+    git_dir, common_dir = dirs
+    # symbolic-ref names the branch even before its first commit, where
+    # rev-parse --abbrev-ref HEAD fails; a detached HEAD reads as "HEAD".
+    branch = _git_lines(cwd, "symbolic-ref", "-q", "--short", "HEAD")
+    return {
+        "repo": Path(common_dir).parent.name,
+        "branch": branch[0] if branch else "HEAD",
+        "worktree": git_dir != common_dir,
+    }
 
 
 def checkout_label(session: dict) -> str:
