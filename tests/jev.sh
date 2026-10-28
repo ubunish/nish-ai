@@ -64,7 +64,7 @@ new_repo() { # $1 = origin url -> repo path
 }
 ALLOWED_REPO="$(new_repo 'https://github.com/ubunish/nish-ai.git')"
 SCP_REPO="$(new_repo 'git@github.com:Ubunish/Other.git')"
-REFUSED_REPO="$(new_repo 'https://github.com/first-motive/fm-ai.git')"
+REFUSED_REPO="$(new_repo 'https://github.com/example-org/not-ours.git')"
 BARE_REPO="$(mktemp -d "$SANDBOX/repo.XXXXXX")"; git -C "$BARE_REPO" init -q
 
 requests() { wc -l < "$STUB_LOG" | tr -d ' '; }
@@ -92,7 +92,7 @@ assert_fails() { # $1 = label  $2.. = command
 
 echo "allowlist"
 before="$(requests)"
-assert_fails "first-motive origin refused" \
+assert_fails "foreign origin refused" \
   env JEV_ENDPOINT="$STUB_URL" TYPESAFE_API_KEY=test-key-123 \
   bash -c "cd '$REFUSED_REPO' && printf x | bash '$JEV' '$QUESTIONS'"
 assert_fails "no origin refused" \
