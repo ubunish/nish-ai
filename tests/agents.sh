@@ -66,7 +66,9 @@ done
 
 echo "install / status / uninstall"
 # Throwaway HOME so we never touch the real ~/.claude. A stub `claude` on PATH
-# keeps the plugin step offline and instant (no marketplace, no network).
+# keeps the plugin step offline and instant (no marketplace, no network), and a
+# failing `curl` stops the d2 and codebase-memory installers, including d2's
+# upstream uninstaller, which would otherwise remove the real binary.
 TMPHOME="$(mktemp -d)"
 STUBBIN="$(mktemp -d)"
 mkdir -p "$TMPHOME/.claude"
@@ -74,7 +76,8 @@ cat > "$STUBBIN/claude" <<'STUB'
 #!/usr/bin/env bash
 exit 0
 STUB
-chmod +x "$STUBBIN/claude"
+printf '#!/usr/bin/env bash\nexit 1\n' > "$STUBBIN/curl"
+chmod +x "$STUBBIN/claude" "$STUBBIN/curl"
 
 run_install() { # $1 = subcommand
   HOME="$TMPHOME" PATH="$STUBBIN:$PATH" bash "$INSTALL" "$1" 2>/dev/null
