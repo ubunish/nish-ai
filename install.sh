@@ -69,6 +69,10 @@ SESSIONS_SS_MARKER='sessions-session-start\.sh'
 SESSIONS_PT_CMD='bash "$HOME/.claude/skills/nish-ai-sessions/hooks/sessions-post-merge.sh"'
 SESSIONS_PT_MARKER='sessions-post-merge\.sh'
 SESSIONS_PT_MATCHER='Bash'
+# UserPromptSubmit: drains this session's inbox and, on main_moved, syncs the
+# checkout and names the changed files. Silent when the inbox is empty.
+SESSIONS_UP_CMD='bash "$HOME/.claude/skills/nish-ai-sessions/hooks/sessions-prompt-submit.sh"'
+SESSIONS_UP_MARKER='sessions-prompt-submit\.sh'
 
 # Retired Jev bash gate. It added permission prompts on top of auto mode's own
 # risk checks, so it was removed. The marker stays so install and uninstall
@@ -766,11 +770,13 @@ status_recognition_hooks() {
 install_sessions_hooks() {
   add_hook SessionStart "$SESSIONS_SS_CMD" "$SESSIONS_SS_MARKER" "sessions SessionStart hook"
   add_hook PostToolUse  "$SESSIONS_PT_CMD" "$SESSIONS_PT_MARKER" "sessions main-moved emitter" "$SESSIONS_PT_MATCHER"
+  add_hook UserPromptSubmit "$SESSIONS_UP_CMD" "$SESSIONS_UP_MARKER" "sessions inbox sync"
 }
 
 uninstall_sessions_hooks() {
   remove_hook SessionStart "$SESSIONS_SS_MARKER" "sessions SessionStart hook"
   remove_hook PostToolUse  "$SESSIONS_PT_MARKER" "sessions main-moved emitter"
+  remove_hook UserPromptSubmit "$SESSIONS_UP_MARKER" "sessions inbox sync"
 }
 
 status_sessions_hooks() {
@@ -779,7 +785,7 @@ status_sessions_hooks() {
     return
   fi
   local ev mk
-  for pair in "SessionStart:$SESSIONS_SS_MARKER" "PostToolUse:$SESSIONS_PT_MARKER"; do
+  for pair in "SessionStart:$SESSIONS_SS_MARKER" "PostToolUse:$SESSIONS_PT_MARKER" "UserPromptSubmit:$SESSIONS_UP_MARKER"; do
     ev="${pair%%:*}"; mk="${pair##*:}"
     if hook_installed_for "$ev" "$mk"; then
       printf "  %-10s sessions hook (%s)\n" "installed" "$ev"

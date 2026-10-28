@@ -232,6 +232,129 @@ post_merge late "$SANDBOX/repo-a" 'gh pr merge 5' true
 assert_eq "interrupted merge is silent"              "0" "$(moved_count twin)"
 for s in self twin branch other late early; do "$CLI" drain "$s" >/dev/null; done
 
+echo "sync on receive"
+# Sync makes merge and rebase commits, which need an identity the sandbox HOME lacks.
+export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
+ORIGIN="$SANDBOX/origin.git"
+git_quiet init --bare "$ORIGIN"
+git_quiet clone "$ORIGIN" "$SANDBOX/pusher"
+git_quiet -C "$SANDBOX/pusher" commit --allow-empty -m init
+git_quiet -C "$SANDBOX/pusher" push origin HEAD:main
+git_quiet clone "$ORIGIN" "$SANDBOX/rx"
+RX="$SANDBOX/rx"
+
+advance_main() { # $@ = file names -> pusher commits them to origin/main
+  local name
+  for name in "$@"; do printf '%s\n' "$name" > "$SANDBOX/pusher/$name"; done
+  git_quiet -C "$SANDBOX/pusher" add -A
+  git_quiet -C "$SANDBOX/pusher" commit -m "add $1"
+  git_quiet -C "$SANDBOX/pusher" push origin HEAD:main
+}
+prompt() { # $1 = cwd -> context injected for session rx, with no new event
+  hook_context sessions-prompt-submit.sh "$(jq -nc --arg c "$1" '{session_id:"rx", cwd:$c, prompt:"next"}')"
+}
+receive() { # $1 = cwd -> context injected after a fresh main_moved event
+  echo '{"type":"main_moved","sha":"x"}' | "$CLI" emit rx
+  prompt "$1"
+}
+head_of() { git -C "$1" rev-parse HEAD; }
+commit_file() { # $1 = repo  $2 = file  $3 = content
+  printf '%s\n' "$3" > "$1/$2"; git_quiet -C "$1" add "$2"; git_quiet -C "$1" commit -m "$2"
+}
+assert_has() { # $1 = label  $2 = needle  $3 = haystack
+  [[ "$3" == *"$2"* ]] && ok "$1" || bad "$1" "expected [$2] in [$3]"
+}
+
+assert_eq "empty inbox injects nothing" "" "$(prompt "$RX")"
+
+advance_main one.txt
+assert_has "clean main fast-forwards and names changed files" "one.txt" "$(receive "$RX")"
+assert_eq "main now matches origin" "$(git -C "$RX" rev-parse origin/main)" "$(head_of "$RX")"
+
+printf 'scratch\n' > "$RX/untracked.txt"
+advance_main two.txt
+assert_has "untracked file does not block a sync" "two.txt" "$(receive "$RX")"
+rm -f "$RX/untracked.txt"
+
+printf 'local edit\n' >> "$RX/one.txt"
+BEFORE="$(head_of "$RX")"
+advance_main three.txt
+assert_has "dirty tree gets a note" "uncommitted" "$(receive "$RX")"
+assert_eq "dirty tree is not moved" "$BEFORE" "$(head_of "$RX")"
+assert_eq "dirty edit is kept" "local edit" "$(tail -n1 "$RX/one.txt")"
+assert_eq "blocked sync stays quiet on later prompts" "" "$(prompt "$RX")"
+git_quiet -C "$RX" checkout -- one.txt
+assert_has "re-queued event syncs once the tree is clean" "three.txt" "$(prompt "$RX")"
+assert_eq "nothing left queued after the sync" "" "$("$CLI" drain rx)"
+
+commit_file "$RX" mine.txt local
+advance_main four.txt
+assert_has "diverged main is not forced" "cannot fast-forward" "$(receive "$RX")"
+git_quiet -C "$RX" fetch origin
+git_quiet -C "$RX" reset --hard origin/main
+"$CLI" drain rx >/dev/null
+
+git_quiet -C "$RX" switch -c pushed
+commit_file "$RX" p.txt p
+git_quiet -C "$RX" push -u origin pushed
+PUSHED="$(head_of "$RX")"
+advance_main five.txt
+OUT="$(receive "$RX")"
+[[ "$OUT" == *"merge"* && "$OUT" == *"five.txt"* ]] && ok "pushed branch is merged" || bad "pushed branch is merged" "got [$OUT]"
+git -C "$RX" merge-base --is-ancestor "$PUSHED" HEAD \
+  && ok "pushed history is kept, not rewritten" || bad "pushed history is kept, not rewritten"
+
+git_quiet -C "$RX" switch --no-track -c nou origin/main
+commit_file "$RX" n.txt n
+git_quiet -C "$RX" push origin nou
+NOU="$(head_of "$RX")"
+advance_main six.txt
+assert_has "branch pushed without -u is merged" "merge" "$(receive "$RX")"
+git -C "$RX" merge-base --is-ancestor "$NOU" HEAD \
+  && ok "branch pushed without -u keeps its history" || bad "branch pushed without -u keeps its history"
+
+git_quiet -C "$RX" switch --no-track -c local origin/main
+commit_file "$RX" l.txt l
+advance_main seven.txt
+OUT="$(receive "$RX")"
+[[ "$OUT" == *"rebase"* && "$OUT" == *"seven.txt"* ]] && ok "unpushed branch is rebased" || bad "unpushed branch is rebased" "got [$OUT]"
+assert_eq "rebased branch sits on origin/main" "$(git -C "$RX" rev-parse origin/main)" "$(git -C "$RX" rev-parse HEAD~1)"
+
+commit_file "$RX" seven.txt mine
+BEFORE="$(head_of "$RX")"
+commit_file "$SANDBOX/pusher" seven.txt theirs
+git_quiet -C "$SANDBOX/pusher" push origin HEAD:main
+assert_has "conflict is aborted with a note" "aborted" "$(receive "$RX")"
+assert_eq "conflict leaves HEAD where it was" "$BEFORE" "$(head_of "$RX")"
+[[ -z "$(git -C "$RX" status --porcelain)" && ! -d "$RX/.git/rebase-merge" ]] \
+  && ok "conflict leaves a clean tree" || bad "conflict leaves a clean tree"
+"$CLI" drain rx >/dev/null
+
+git_quiet -C "$RX" worktree add --no-track -b wt-sync "$SANDBOX/rx-wt" origin/main
+commit_file "$SANDBOX/rx-wt" w.txt w
+advance_main eight.txt
+assert_has "worktree session syncs its own branch" "eight.txt" "$(receive "$SANDBOX/rx-wt")"
+
+git_quiet -C "$RX" checkout --detach
+assert_has "detached HEAD gets a note" "detached" "$(receive "$RX")"
+"$CLI" drain rx >/dev/null
+git_quiet -C "$RX" switch local
+
+assert_has "failed fetch gets a note" "Fetching origin failed" "$(receive "$SANDBOX/repo-c")"
+"$CLI" drain rx >/dev/null
+
+git_quiet -C "$SANDBOX/rx-wt" switch -q --detach
+git_quiet -C "$RX" switch main
+git_quiet -C "$RX" reset --hard origin/main
+many=(); for i in $(seq 1 25); do many+=("bulk$i.txt"); done
+advance_main "${many[@]}"
+assert_has "long file lists are cut to twenty" "(and 5 more)" "$(receive "$RX")"
+
+advance_main $'evil\nname $(x) <tag>.txt'
+OUT="$(receive "$RX")"
+[[ "$OUT" == *evil* && "$OUT" != *$'\n'* && "$OUT" != *'$('* && "$OUT" != *'<'* ]] \
+  && ok "crafted file name is cut to plain characters" || bad "crafted file name is cut to plain characters" "got [$OUT]"
+
 echo "install wiring"
 # Stubs keep install offline: claude answers every plugin and MCP call, and a
 # failing curl stops the d2 and codebase-memory installers — including d2's
@@ -244,7 +367,7 @@ printf '#!/usr/bin/env bash\nexit 1\n' > "$STUB_BIN/curl"
 chmod +x "$STUB_BIN/claude" "$STUB_BIN/curl"
 run_install() { HOME="$INSTALL_HOME" PATH="$STUB_BIN:$PATH" bash "$REPO_DIR/install.sh" "$1" >/dev/null 2>&1; }
 SETTINGS="$INSTALL_HOME/.claude/settings.json"
-SESSION_HOOKS=("SessionStart:sessions-session-start.sh" "PostToolUse:sessions-post-merge.sh")
+SESSION_HOOKS=("SessionStart:sessions-session-start.sh" "PostToolUse:sessions-post-merge.sh" "UserPromptSubmit:sessions-prompt-submit.sh")
 hook_present() { # $1 = event  $2 = script name
   jq -e --arg e "$1" --arg m "$2" '(.hooks[$e] // []) | map(.hooks[]?.command) | any(contains($m))' "$SETTINGS" >/dev/null 2>&1
 }
