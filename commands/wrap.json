@@ -1,0 +1,13 @@
+{
+  "route": {
+    "type": "choice",
+    "instructions": "A coding session is being closed down. `goal` is what the session was started to do. `item` is one open item left at the end of it: a todo, an unfinished plan step, a side fix, a background task, an agent or CI run being waited on, or a loose end noticed along the way. `effort` is the session's own estimate of what finishing it would take. Decide what should happen to this item so the session can close without losing it and without spending more on work the goal does not need.",
+    "criteria": {
+      "finish": "The item is part of the goal and is small: a few minutes, a handful of tool calls, no new investigation, no waiting on CI or a background task",
+      "backlog": "The item is a small follow-up worth remembering but outside the goal, or not worth a tracked issue: a tidy-up, a note, a minor idea",
+      "issue": "The item is real work that needs its own session: a bug, a feature, an investigation, anything that would take substantial time, tokens or context to finish here",
+      "drop": "The item is a detour that no longer serves the goal and loses nothing if forgotten, such as waiting on a background task whose result is not needed",
+      "ask_user": "None of the others is clear: the item may be part of the goal or not, or the right home depends on the user's priorities"
+    }
+  }
+}

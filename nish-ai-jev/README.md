@@ -64,6 +64,7 @@ Each caller sets its own threshold against the cost of being wrong. These are th
 | Commit gate | principle Scores | 2.5 of 3, confidence 0.70 | All seven together skip the code reviewer |
 | Commit gate | `real` Noul on a finding | 0.50 | Below it, the finding is tagged `unverified` |
 | Grill | `answer` Choice confidence | 0.75 | Auto-answers instead of asking |
+| `/wrap` | `route` Choice confidence | 0.75 | Finishes, files or drops an open item instead of asking |
 
 Security thresholds are deliberately low and skip thresholds deliberately high: a wasted review costs a minute, a missed one costs more.
 

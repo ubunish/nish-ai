@@ -58,6 +58,8 @@ Symlinked into `~/.claude/commands/` by `install.sh`.
 | `/pause` | Bring the current task to a safe stopping point and write a resume note to `plans/.pause.md`: done, in progress, next, uncommitted state, and session context |
 | `/unpause` | Pick up a paused task from `plans/.pause.md`, checking for drift first (named to avoid the built-in `/resume` and `/continue`) |
 | `/cut` | Audit the whole repository for deletable code — spawns the code reviewer in repo mode for a deletion-only pass, then re-ranks the candidates with Jev on safety, payoff and coupling |
+| `/wrap` | Close a drifting session: stop side work and background waits, restate the goal, finish small on-goal items, and route the rest through Jev to a GitHub issue, `plans/BACKLOG.md`, or the bin — asking the user when Jev is unsure |
+| `/can-close` | Answer `yes` or `no`: is the session's goal met with nothing left only in chat, running, or unpushed? A `no` names at most three items and points to `/wrap` |
 
 ## Agents
 
@@ -316,6 +318,7 @@ flowchart TD
     G["commit gate<br/>6 security · 7 principles · prefix"] --> J
     C["/cut<br/>safety · payoff · coupling"] --> J
     P["planning grill<br/>auto-answer from past decisions"] --> J
+    W["/wrap<br/>route open items"] --> J
 
     J --> AL{"git origin on<br/>nish-ai-jev/allowlist?"}
     AL -->|no| X["exit ≠ 0 · nothing sent"]
@@ -327,7 +330,7 @@ flowchart TD
 
 **Data boundary.** `nish-ai-jev/allowlist` holds one glob per line, matched against the repo's git origin. The CLI enforces it, so every caller inherits it and none can opt out. A repo with an unknown origin, or none, never reaches the API. `TYPESAFE_API_KEY` comes from the shell profile — never this repo, never `settings.json`, never a command line.
 
-**Fail-open.** Every caller treats a non-zero exit as "Jev said nothing". The router emits its old five-way directive, the commit gate spawns the code reviewer, `/cut` presents the reviewer's own ranking, and the grill asks the user. A hook that cannot fall back does not call `jev`.
+**Fail-open.** Every caller treats a non-zero exit as "Jev said nothing". The router emits its old five-way directive, the commit gate spawns the code reviewer, `/cut` presents the reviewer's own ranking, the grill asks the user, and `/wrap` asks the user where each open item goes. A hook that cannot fall back does not call `jev`.
 
 **Thresholds.** Each caller sets its own against the cost of being wrong, and `nish-ai-jev/replay` is how they move. Security thresholds are low and skip thresholds high on purpose: a wasted review costs a minute, a missed one costs more. The current values live in one place — the threshold table in [`nish-ai-jev/README.md`](nish-ai-jev/README.md) — so a change lands once.
 
