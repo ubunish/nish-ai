@@ -5,8 +5,9 @@ allowed-tools: Bash(git status:*), Bash(git log:*), Bash(ls:*), Read
 ---
 
 Latest plan: !`ls -t plans/*.md 2>/dev/null | head -1`
-Working tree: !`git status --short`
-Recent commits: !`git log --oneline -10`
+Working tree: !`git status --short 2>/dev/null || echo "n/a (not a git repo)"`
+Nested repos: !`find . -mindepth 2 -maxdepth 2 -name .git 2>/dev/null | sed "s|^\./||; s|/\.git$||"`
+Recent commits: !`git log --oneline -10 2>/dev/null || echo "n/a (not a git repo)"`
 
 Report progress on the task this session is working on (or on `$ARGUMENTS` if given). Do not start, continue, or change any work — this is a status read only. After reporting, pick the task back up only if it was mid-flight before this command.
 

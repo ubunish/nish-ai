@@ -5,9 +5,10 @@ allowed-tools: Bash, Read, Edit, Write
 ---
 
 Latest plan: !`ls -t plans/*.md 2>/dev/null | head -1`
-Current branch: !`git rev-parse --abbrev-ref HEAD 2>/dev/null`
-Working tree: !`git status --short 2>/dev/null`
-Recent commits: !`git log --oneline -10 2>/dev/null`
+Current branch: !`git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "n/a (not a git repo)"`
+Working tree: !`git status --short 2>/dev/null || echo "n/a (not a git repo)"`
+Nested repos: !`find . -mindepth 2 -maxdepth 2 -name .git 2>/dev/null | sed "s|^\./||; s|/\.git$||"`
+Recent commits: !`git log --oneline -10 2>/dev/null || echo "n/a (not a git repo)"`
 
 The user is stepping away. Bring the current task to a clean stopping point, record where it stands, then stop. Do not stop mid-edit, and do not push on to the end of the task either.
 

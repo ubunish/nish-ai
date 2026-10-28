@@ -5,9 +5,10 @@ allowed-tools: Bash, Read, Edit, Write, Glob, Grep, Task
 ---
 
 Resume note: !`cat plans/.pause.md 2>/dev/null || echo "none"`
-Current branch: !`git rev-parse --abbrev-ref HEAD 2>/dev/null`
-Working tree: !`git status --short 2>/dev/null`
-Recent commits: !`git log --oneline -10 2>/dev/null`
+Current branch: !`git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "n/a (not a git repo)"`
+Working tree: !`git status --short 2>/dev/null || echo "n/a (not a git repo)"`
+Nested repos: !`find . -mindepth 2 -maxdepth 2 -name .git 2>/dev/null | sed "s|^\./||; s|/\.git$||"`
+Recent commits: !`git log --oneline -10 2>/dev/null || echo "n/a (not a git repo)"`
 
 Resume the task recorded in the resume note above. If the note is `none`, say `No paused task found (plans/.pause.md missing).` and stop.
 

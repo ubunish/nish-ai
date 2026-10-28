@@ -5,9 +5,10 @@ allowed-tools: Bash, Read, Edit, Write, TaskStop, AskUserQuestion
 ---
 
 Latest plan: !`ls -t plans/*.md 2>/dev/null | head -1`
-Current branch: !`git rev-parse --abbrev-ref HEAD 2>/dev/null`
-Working tree: !`git status --short 2>/dev/null`
-Unpushed: !`git log --oneline @{u}..HEAD 2>/dev/null`
+Current branch: !`git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "n/a (not a git repo)"`
+Working tree: !`git status --short 2>/dev/null || echo "n/a (not a git repo)"`
+Nested repos: !`find . -mindepth 2 -maxdepth 2 -name .git 2>/dev/null | sed "s|^\./||; s|/\.git$||"`
+Unpushed: !`git log --oneline @{u}..HEAD 2>/dev/null || echo "n/a (no repo or no upstream)"`
 
 The user wants this session closed. It may have drifted into side fixes, or into waiting on background tasks, agents or CI. Do not continue that drift. The job now is to land what the goal needs, put everything else somewhere durable, and stop.
 

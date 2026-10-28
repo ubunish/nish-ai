@@ -5,9 +5,10 @@ allowed-tools: Bash(git status:*), Bash(git log:*), Bash(git stash list:*), Bash
 ---
 
 Latest plan: !`ls -t plans/*.md 2>/dev/null | head -1`
-Working tree: !`git status --short 2>/dev/null`
-Unpushed: !`git log --oneline @{u}..HEAD 2>/dev/null`
-Stashes: !`git stash list 2>/dev/null`
+Working tree: !`git status --short 2>/dev/null || echo "n/a (not a git repo)"`
+Nested repos: !`find . -mindepth 2 -maxdepth 2 -name .git 2>/dev/null | sed "s|^\./||; s|/\.git$||"`
+Unpushed: !`git log --oneline @{u}..HEAD 2>/dev/null || echo "n/a (no repo or no upstream)"`
+Stashes: !`git stash list 2>/dev/null || echo "n/a (not a git repo)"`
 
 Answer one question: can the user close this session now and lose nothing? This is a read only. Do not start, finish or change any work.
 

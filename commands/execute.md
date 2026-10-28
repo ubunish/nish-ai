@@ -5,9 +5,10 @@ allowed-tools: Bash, Read, Edit, Write, Glob, Grep, Task
 ---
 
 Latest plan: !`ls -t plans/*.md 2>/dev/null | head -1`
-Current branch: !`git rev-parse --abbrev-ref HEAD`
-Working tree: !`git status --short`
-Recent commits: !`git log --oneline -10`
+Current branch: !`git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "n/a (not a git repo)"`
+Working tree: !`git status --short 2>/dev/null || echo "n/a (not a git repo)"`
+Nested repos: !`find . -mindepth 2 -maxdepth 2 -name .git 2>/dev/null | sed "s|^\./||; s|/\.git$||"`
+Recent commits: !`git log --oneline -10 2>/dev/null || echo "n/a (not a git repo)"`
 
 Execute a plan automatically. This is the no-confirm path: the `nish-ai-goal-oriented-coding` "confirm with user / Proceed?" step is **removed here**. The invocation is the approval — run on sight.
 
