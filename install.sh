@@ -59,6 +59,12 @@ UV_HOOK_MARKER='uv-pretooluse\.sh'
 UV_SS_CMD='bash "$HOME/.claude/skills/nish-ai-uv/hooks/uv-session-start.sh"'
 UV_SS_MARKER='uv-session-start\.sh'
 
+# Session coordination hooks (nish-ai-sessions). SessionStart moves a session
+# that collides with an earlier live peer in the same checkout into a worktree;
+# a solo session gets no output.
+SESSIONS_SS_CMD='bash "$HOME/.claude/skills/nish-ai-sessions/hooks/sessions-session-start.sh"'
+SESSIONS_SS_MARKER='sessions-session-start\.sh'
+
 # Retired Jev bash gate. It added permission prompts on top of auto mode's own
 # risk checks, so it was removed. The marker stays so install and uninstall
 # strip the hook from a settings.json written by an older install.
@@ -752,6 +758,30 @@ status_recognition_hooks() {
   done
 }
 
+install_sessions_hooks() {
+  add_hook SessionStart "$SESSIONS_SS_CMD" "$SESSIONS_SS_MARKER" "sessions SessionStart hook"
+}
+
+uninstall_sessions_hooks() {
+  remove_hook SessionStart "$SESSIONS_SS_MARKER" "sessions SessionStart hook"
+}
+
+status_sessions_hooks() {
+  if [[ ! -f "$SETTINGS_FILE" ]] || ! command -v jq >/dev/null; then
+    printf "  %-10s sessions hooks (cannot verify)\n" "unknown"
+    return
+  fi
+  local ev mk
+  for pair in "SessionStart:$SESSIONS_SS_MARKER"; do
+    ev="${pair%%:*}"; mk="${pair##*:}"
+    if hook_installed_for "$ev" "$mk"; then
+      printf "  %-10s sessions hook (%s)\n" "installed" "$ev"
+    else
+      printf "  %-10s sessions hook (%s)\n" "missing" "$ev"
+    fi
+  done
+}
+
 auto_memory_disabled() {
   [[ -f "$SETTINGS_FILE" ]] || return 1
   jq -e '.autoMemoryEnabled == false' "$SETTINGS_FILE" >/dev/null
@@ -935,6 +965,7 @@ cmd_install() {
   install_commands
   install_agents
   install_recognition_hooks
+  install_sessions_hooks
   install_style_hooks
   install_github_hook
   install_uv_hook
@@ -953,6 +984,7 @@ cmd_uninstall() {
   uninstall_commands
   uninstall_agents
   uninstall_recognition_hooks
+  uninstall_sessions_hooks
   uninstall_style_hooks
   uninstall_github_hook
   uninstall_uv_hook
@@ -971,6 +1003,7 @@ cmd_status() {
   status_commands
   status_agents
   status_recognition_hooks
+  status_sessions_hooks
   status_style_hooks
   status_github_hook
   status_uv_hook

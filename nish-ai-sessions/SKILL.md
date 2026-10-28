@@ -38,3 +38,11 @@ nish-session drain SID                        # one JSON event per line
 ## State Safety
 
 A session id becomes a path segment, so it is stripped to `[A-Za-z0-9_-]`. A symlink at an inbox is never followed: `emit` refuses it and `drain` leaves it alone. State is written with umask 077. Needs git 2.31 or newer.
+
+## Hooks
+
+Each hook is silent unless an event concerns its session, so a solo session spends no tokens on this layer.
+
+| Hook | Event | Fires when |
+|------|-------|------------|
+| `sessions-session-start.sh` | SessionStart | A live peer that started earlier sits in the same checkout: injects an instruction to `EnterWorktree`, named after the goal, before the first edit. Only the newer session moves. |
