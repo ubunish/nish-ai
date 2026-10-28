@@ -1,0 +1,13 @@
+{
+  "overlaps": {
+    "type": "noul",
+    "instructions": {
+      "question": "Two Claude sessions work in the same repository. `claim` is work one session has already taken on; `topic` is work another session is about to start. Would doing `topic` duplicate or collide with `claim`?",
+      "note": "The two are written by different sessions, so the same bug or feature is often phrased differently. Judge the work, not the wording."
+    },
+    "criteria": {
+      "true": "It is the same bug, feature or change, or it edits the same code toward the same end — doing both would duplicate effort or produce conflicting changes.",
+      "false": "It is different work that can proceed in parallel, even if it touches the same area of the codebase."
+    }
+  }
+}

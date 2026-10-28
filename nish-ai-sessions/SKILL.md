@@ -35,6 +35,21 @@ nish-session drain SID                        # one JSON event per line
 
 `emit` stamps `ts` on the event. An emit and a drain on the same state never interleave: both take a `mkdir` lock, so an event is either in the batch a drain prints or in the next one. The lock records its holder's pid: after two seconds a lock whose holder has exited is taken over, while one held by a live process fails the call rather than letting it run unlocked. One residual gap is accepted: if two callers time out on the same crashed holder at once, both can take over and one event may be lost.
 
+## Claims
+
+A claim says which work a session has taken on, so two sessions on one repo do not fix the same bug. Claims live in `~/.claude/nish-ai-sessions/claims/<repo-key>.jsonl`, keyed by a hash of the git common dir, and die with their session's pid.
+
+```
+first prompt ──→ goal claim (unjudged, once per session)
+off-goal fix ──→ nish-session claim "<topic>"
+                   ├─ no live claims      → record → clear
+                   ├─ jev: overlaps ≥ 0.5 → owned by <name>   (nothing recorded)
+                   ├─ jev: apart          → record → clear
+                   └─ jev failed          → record → print live claims for Claude to judge, exit 0
+```
+
+The overlap question is `jev/overlap.json`, a single noul the CLI asks once per live peer claim (at most a goal and the latest claim per session, since a new claim replaces the last), asking whether the two pieces of work are the same bug, feature or change however they are phrased. A session with a live peer in the repo is told at SessionStart to claim before any off-goal fix. `nish-session claims` lists the live claims, one JSON object per line. Topics, including the goal taken from a session's first prompt, are sent to Jev for an allowlisted origin only; on the fail-open path they are printed cut to plain characters and labelled as data. Pass `--` before a topic that starts with a dash.
+
 ## State Safety
 
 A session id becomes a path segment, so it is stripped to `[A-Za-z0-9_-]`. A symlink at an inbox is never followed: `emit` refuses it and `drain` leaves it alone. State is written with umask 077. Needs git 2.31 or newer.
@@ -45,6 +60,6 @@ Each hook is silent unless an event concerns its session, so a solo session spen
 
 | Hook | Event | Fires when |
 |------|-------|------------|
-| `sessions-session-start.sh` | SessionStart | A live peer that started earlier sits in the same checkout: injects an instruction to `EnterWorktree`, named after the goal, before the first edit. Only the newer session moves. |
+| `sessions-session-start.sh` | SessionStart | A live peer that started earlier sits in the same checkout: injects an instruction to `EnterWorktree`, named after the goal, before the first edit. Only the newer session moves. Any session with a live peer in the repo is also told to `claim` off-goal fixes first. |
 | `sessions-post-merge.sh` | PostToolUse (Bash) | This session finished `gh pr merge` (not `--auto`), a `git push` whose refspec names `main` (`main`, `HEAD:main`, `refs/heads/main`), or a bare `git push` / `git push origin HEAD` from `main`: appends `{type: main_moved, sha, from}` to every live peer's inbox. The command is read per segment, following `cd` hops up to the push, so `cd <repo> && git push` routes to that repo. Deletes and dry runs are ignored; merges made outside a Claude session are not seen. |
-| `sessions-prompt-submit.sh` | UserPromptSubmit | The session's inbox holds a `main_moved` event: fetches `origin main`, then syncs a clean checkout — fast-forward on `main`, `git rebase origin/main` on a branch none of whose commits are on a remote, `git merge origin/main` on a branch with an upstream or pushed commits (pushed history is never rewritten). Injects one line naming the changed files so Claude re-reads them. A dirty tree, detached HEAD, diverged `main`, failed fetch or conflict changes nothing: a note is injected once and the event is re-queued, so the sync lands on the first prompt after the cause clears. Untracked files do not block. Branch and file names are cut to one plain-charset word of at most 80 characters and labelled as data; event fields never reach the model. |
+| `sessions-prompt-submit.sh` | UserPromptSubmit | Every prompt: records the session's goal claim if it has none yet. Then, when the inbox holds a `main_moved` event: fetches `origin main`, then syncs a clean checkout — fast-forward on `main`, `git rebase origin/main` on a branch none of whose commits are on a remote, `git merge origin/main` on a branch with an upstream or pushed commits (pushed history is never rewritten). Injects one line naming the changed files so Claude re-reads them. A dirty tree, detached HEAD, diverged `main`, failed fetch or conflict changes nothing: a note is injected once and the event is re-queued, so the sync lands on the first prompt after the cause clears. Untracked files do not block. Branch and file names are cut to one plain-charset word of at most 80 characters and labelled as data; event fields never reach the model. |

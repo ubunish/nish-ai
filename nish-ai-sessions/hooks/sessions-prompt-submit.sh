@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Sync this session when a peer moved main. UserPromptSubmit drains the
+# Sync this session when a peer moved main, and record its goal claim from the
+# first prompt. UserPromptSubmit drains the
 # session's inbox; on a main_moved event it brings the checkout up to date and
 # injects one line naming the files that changed, so Claude re-reads them
 # before editing. An empty inbox costs one CLI call and no output.
@@ -19,8 +20,12 @@ MAX_NAME=80
 command -v jq >/dev/null || exit 0
 [[ -x "$CLI" ]] || exit 0
 
-IFS=$'\t' read -r SID CWD < <(jq -r '[.session_id // "", .cwd // ""] | @tsv' 2>/dev/null) || exit 0
+IFS=$'\t' read -r SID CWD PROMPT < <(jq -r '[.session_id // "", .cwd // "", .prompt // ""] | @tsv' 2>/dev/null) || exit 0
 [[ -n "$SID" && -n "$CWD" ]] || exit 0
+
+# The session's goal claim, written from its first prompt. The CLI keeps it
+# idempotent, so later prompts leave the first one in place.
+[[ -z "$PROMPT" ]] || "$CLI" claim --goal --cwd "$CWD" --self "$SID" -- "${PROMPT:0:200}" >/dev/null 2>&1 || true
 
 EVENTS="$("$CLI" drain "$SID" 2>/dev/null || true)"
 [[ -n "$EVENTS" ]] || exit 0

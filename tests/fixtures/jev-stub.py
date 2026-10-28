@@ -23,6 +23,7 @@ ANSWERS = {
     "drifted": {"type": "noul", "noul": 0.9},
     "risky": {"type": "noul", "noul": 0.9},
     "pasted_only": {"type": "noul", "noul": 0.05},
+    "overlaps": {"type": "noul", "noul": 0.9},
     "category": {
         "type": "choice",
         "choice": "C",
@@ -42,6 +43,7 @@ VARIANTS = {
     },
     "/pasted": {"pasted_only": {"noul": 0.95}},
     "/steady": {"drifted": {"noul": 0.05}},
+    "/apart": {"overlaps": {"noul": 0.05}},
 }
 
 

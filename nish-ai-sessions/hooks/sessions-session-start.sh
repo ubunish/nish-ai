@@ -5,7 +5,8 @@
 # working tree would otherwise trample each other's uncommitted changes.
 #
 # Only the newer session moves, so two sessions starting together do not both
-# leave. A solo session gets nothing — no output, no tokens.
+# leave. Any session with a live peer in the repo is also told to claim
+# off-goal fixes first. A solo session gets nothing — no output, no tokens.
 set -euo pipefail
 
 CLI="$HOME/.claude/skills/nish-ai-sessions/bin/nish-session"
@@ -29,14 +30,19 @@ STARTED="$(for file in "$REGISTRY"/*.json; do
 done | sort -n | tail -n1)"
 [[ "$STARTED" =~ ^[0-9]+$ ]] || STARTED="$(( $(date +%s) * 1000 ))"
 
-HOLDERS="$("$CLI" peers --cwd "$CWD" --self "$SID" 2>/dev/null | jq -rs \
+read -r PEERS HOLDERS < <("$CLI" peers --cwd "$CWD" --self "$SID" 2>/dev/null | jq -rs \
   --arg t "$TOPLEVEL" --argjson started "$STARTED" \
-  'map(select(.toplevel == $t and (.started_at // 0) < $started)) | length' 2>/dev/null)" || exit 0
-[[ "$HOLDERS" =~ ^[0-9]+$ && "$HOLDERS" -gt 0 ]] || exit 0
+  '"\(length) \(map(select(.toplevel == $t and (.started_at // 0) < $started)) | length)"' 2>/dev/null) || exit 0
+[[ "$PEERS" =~ ^[0-9]+$ && "$PEERS" -gt 0 ]] || exit 0
 
 # The text is fixed: peer names and paths can come from directory names or a
-# first prompt, and nothing peer-derived is placed in this instruction.
-CTX="SESSION COLLISION (nish-ai-sessions). $HOLDERS other live Claude session(s) already work in this checkout. The user's standing instruction for this case: before the first file edit, call EnterWorktree with a short lowercase-hyphenated name drawn from this session's goal, and do all work there. Reading files and answering questions need no worktree."
+# first prompt, and nothing peer-derived is placed in these instructions.
+CLAIM="SESSION PEERS (nish-ai-sessions). $PEERS other live Claude session(s) work in this repo. Before fixing anything outside this session's goal, run \`~/.claude/skills/nish-ai-sessions/bin/nish-session claim \"<one-line description of the fix>\"\`. On \`clear\`, go ahead; on \`owned by <name>\`, leave it to that session and mention it to the user."
+CTX="$CLAIM"
+if [[ "$HOLDERS" =~ ^[0-9]+$ && "$HOLDERS" -gt 0 ]]; then
+  CTX="SESSION COLLISION (nish-ai-sessions). $HOLDERS other live Claude session(s) already work in this checkout. The user's standing instruction for this case: before the first file edit, call EnterWorktree with a short lowercase-hyphenated name drawn from this session's goal, and do all work there. Reading files and answering questions need no worktree.
+$CLAIM"
+fi
 
 jq -n --arg ctx "$CTX" \
   '{hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:$ctx}}'

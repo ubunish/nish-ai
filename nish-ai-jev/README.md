@@ -65,6 +65,7 @@ Each caller sets its own threshold against the cost of being wrong. These are th
 | Commit gate | `real` Noul on a finding | 0.50 | Below it, the finding is tagged `unverified` |
 | Grill | `answer` Choice confidence | 0.75 | Auto-answers instead of asking |
 | `/wrap` | `route` Choice confidence | 0.75 | Finishes, files or drops an open item instead of asking |
+| Session claims | `overlaps` Noul | 0.50 | Answers `owned by <name>`; the claim is not recorded |
 
 Security thresholds are deliberately low and skip thresholds deliberately high: a wasted review costs a minute, a missed one costs more.
 
