@@ -412,10 +412,21 @@ printf '{"session_id":"gone","pid":%s,"name":"gone","topic":"old work","kind":"c
 claim /apart alpha "another fix" >/dev/null
 grep -q '"gone"' "$FILE" && bad "dead claims are pruned on write" || ok "dead claims are pruned on write"
 
-hook_context sessions-prompt-submit.sh "$(jq -nc --arg c "$CLAIMS_REPO" '{session_id:"dash", cwd:$c, prompt:"- add dark mode"}')" >/dev/null
+hook_context sessions-prompt-submit.sh "$(jq -nc --arg c "$CLAIMS_REPO" '{session_id:"dash", cwd:$c, prompt:"- add dark mode to the settings page"}')" >/dev/null
 start_live; register "$LIVE" dash "$CLAIMS_REPO" dash
-hook_context sessions-prompt-submit.sh "$(jq -nc --arg c "$CLAIMS_REPO" '{session_id:"dash", cwd:$c, prompt:"- add dark mode"}')" >/dev/null
+hook_context sessions-prompt-submit.sh "$(jq -nc --arg c "$CLAIMS_REPO" '{session_id:"dash", cwd:$c, prompt:"- add dark mode to the settings page"}')" >/dev/null
 [[ "$(claim_topics "$CLAIMS_REPO")" == *"dash:goal:- add dark mode"* ]] && ok "prompt starting with a dash is still a goal" || bad "prompt starting with a dash is still a goal"
+start_live; register "$LIVE" terse "$CLAIMS_REPO" terse
+hook_context sessions-prompt-submit.sh "$(jq -nc --arg c "$CLAIMS_REPO" '{session_id:"terse", cwd:$c, prompt:"done"}')" >/dev/null
+[[ "$(claim_topics "$CLAIMS_REPO")" != *"terse:goal"* ]] && ok "short prompt is not taken as the goal" || bad "short prompt is not taken as the goal"
+hook_context sessions-prompt-submit.sh "$(jq -nc --arg c "$CLAIMS_REPO" '{session_id:"terse", cwd:$c, prompt:"fix the flaky upload retry test"}')" >/dev/null
+[[ "$(claim_topics "$CLAIMS_REPO")" == *"terse:goal:fix the flaky upload retry test"* ]] \
+  && ok "first substantive prompt becomes the goal" || bad "first substantive prompt becomes the goal"
+start_live; register "$LIVE" edge "$CLAIMS_REPO" edge
+hook_context sessions-prompt-submit.sh "$(jq -nc --arg c "$CLAIMS_REPO" '{session_id:"edge", cwd:$c, prompt:"nineteen chars here"}')" >/dev/null
+[[ "$(claim_topics "$CLAIMS_REPO")" != *"edge:goal"* ]] && ok "19-character prompt is under the floor" || bad "19-character prompt is under the floor"
+hook_context sessions-prompt-submit.sh "$(jq -nc --arg c "$CLAIMS_REPO" '{session_id:"edge", cwd:$c, prompt:"twenty chars here ok"}')" >/dev/null
+[[ "$(claim_topics "$CLAIMS_REPO")" == *"edge:goal:twenty chars here ok"* ]] && ok "20-character prompt meets the floor" || bad "20-character prompt meets the floor"
 claim /v1/systemone alpha "   " 2>/dev/null && bad "blank topic is refused" || ok "blank topic is refused"
 claim /v1/systemone nobody "anything" 2>/dev/null && bad "unregistered session cannot claim" || ok "unregistered session cannot claim"
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Sync this session when a peer moved main, and record its goal claim from the
-# first prompt. UserPromptSubmit drains the
+# Sync this session when a peer moved main, and record its goal claim from its
+# first substantive prompt (20+ characters). UserPromptSubmit drains the
 # session's inbox; on a main_moved event it brings the checkout up to date and
 # injects one line naming the files that changed, so Claude re-reads them
 # before editing. An empty inbox costs one CLI call and no output.
@@ -16,16 +16,21 @@ set -euo pipefail
 CLI="$HOME/.claude/skills/nish-ai-sessions/bin/nish-session"
 MAX_FILES=20
 MAX_NAME=80
+# Under this, a prompt is an acknowledgement or a nudge ("done", "go on"), not a
+# goal another session could overlap with. Matches the router's drift floor.
+GOAL_MIN_CHARS=20
 
 command -v jq >/dev/null || exit 0
 [[ -x "$CLI" ]] || exit 0
 
-IFS=$'\t' read -r SID CWD PROMPT < <(jq -r '[.session_id // "", .cwd // "", .prompt // ""] | @tsv' 2>/dev/null) || exit 0
+# The length is taken before @tsv escapes newlines, so the floor counts the
+# prompt itself.
+IFS=$'\t' read -r SID CWD PROMPT_LEN PROMPT < <(jq -r '[.session_id // "", .cwd // "", (.prompt // "" | length), .prompt // ""] | @tsv' 2>/dev/null) || exit 0
 [[ -n "$SID" && -n "$CWD" ]] || exit 0
 
-# The session's goal claim, written from its first prompt. The CLI keeps it
-# idempotent, so later prompts leave the first one in place.
-[[ -z "$PROMPT" ]] || "$CLI" claim --goal --cwd "$CWD" --self "$SID" -- "${PROMPT:0:200}" >/dev/null 2>&1 || true
+# The session's goal claim, written from its first substantive prompt. The CLI
+# keeps it idempotent, so later prompts leave the first one in place.
+[[ "${PROMPT_LEN:-0}" -lt "$GOAL_MIN_CHARS" ]] || "$CLI" claim --goal --cwd "$CWD" --self "$SID" -- "${PROMPT:0:200}" >/dev/null 2>&1 || true
 
 EVENTS="$("$CLI" drain "$SID" 2>/dev/null || true)"
 [[ -n "$EVENTS" ]] || exit 0
