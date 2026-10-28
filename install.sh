@@ -113,7 +113,7 @@ D2_INSTALL_URL='https://d2lang.com/install.sh'
 #   Tier 2 (allow): writes + local git     Edit/Write/git add|commit|branch|checkout|switch|merge|rebase
 #   Tier 3 (allow): read-only shell        ls/cat/pwd/which/find/head/tail/wc/file/tree
 #   Tier 4 (allow): test/lint/build        npm test|run, pytest, ruff, eslint, tsc, uv run
-#   Tier 5 (allow): ship                   git push|fetch|pull, gh pr create|view|checks|merge, gh run list|view
+#   Tier 5 (allow): ship                   git push|fetch|pull, gh pr create|view|checks|merge, gh run list|view, gh issue close
 # Tiers 3-4 never touch the network and read project code only. Network installs
 # and arbitrary remote execution (npm install, npx, uvx, pip install, ...) are
 # left OFF the allow list on purpose — they pull and run remote code, so they
@@ -135,6 +135,9 @@ D2_INSTALL_URL='https://d2lang.com/install.sh'
 # because they reach the network. Checking a post-merge publish run is part of
 # shipping, and without them auto mode reads the check as an unreviewed merge.
 #
+# `gh issue close` joins tier 5 because closing the issue a change resolved is
+# part of shipping it. It is outward-facing but undone by `gh issue reopen`.
+#
 # `git fetch|pull` and `git switch` close the same gap after a merge: syncing
 # the local default branch is the last ship step. An allow rule only applies
 # when every part of a chained command matches one, so a single uncovered
@@ -153,7 +156,7 @@ D2_INSTALL_URL='https://d2lang.com/install.sh'
 # Nothing is denied by default — anything outside the allow list (reset --hard,
 # rm -rf, ...) falls through to a normal prompt rather than a hard block. Add
 # specific entries to PERM_DENY_JSON if a hard block is ever wanted.
-PERM_ALLOW_JSON='["Read","Grep","Glob","WebSearch","WebFetch","Edit","Write","Bash(cd:*)","Bash(git status:*)","Bash(git diff:*)","Bash(git log:*)","Bash(git show:*)","Bash(git branch:*)","Bash(git add:*)","Bash(git commit:*)","Bash(git checkout:*)","Bash(git switch:*)","Bash(git merge:*)","Bash(git rebase:*)","Bash(git push:*)","Bash(git fetch:*)","Bash(git pull:*)","Bash(gh pr create:*)","Bash(gh pr view:*)","Bash(gh pr checks:*)","Bash(gh pr merge:*)","Bash(gh run list:*)","Bash(gh run view:*)","Bash(ls:*)","Bash(cat:*)","Bash(pwd)","Bash(which:*)","Bash(find:*)","Bash(head:*)","Bash(tail:*)","Bash(wc:*)","Bash(file:*)","Bash(tree:*)","Bash(npm test:*)","Bash(npm run:*)","Bash(pytest:*)","Bash(ruff:*)","Bash(eslint:*)","Bash(tsc:*)","Bash(uv run:*)"]'
+PERM_ALLOW_JSON='["Read","Grep","Glob","WebSearch","WebFetch","Edit","Write","Bash(cd:*)","Bash(git status:*)","Bash(git diff:*)","Bash(git log:*)","Bash(git show:*)","Bash(git branch:*)","Bash(git add:*)","Bash(git commit:*)","Bash(git checkout:*)","Bash(git switch:*)","Bash(git merge:*)","Bash(git rebase:*)","Bash(git push:*)","Bash(git fetch:*)","Bash(git pull:*)","Bash(gh pr create:*)","Bash(gh pr view:*)","Bash(gh pr checks:*)","Bash(gh pr merge:*)","Bash(gh run list:*)","Bash(gh run view:*)","Bash(gh issue close:*)","Bash(ls:*)","Bash(cat:*)","Bash(pwd)","Bash(which:*)","Bash(find:*)","Bash(head:*)","Bash(tail:*)","Bash(wc:*)","Bash(file:*)","Bash(tree:*)","Bash(npm test:*)","Bash(npm run:*)","Bash(pytest:*)","Bash(ruff:*)","Bash(eslint:*)","Bash(tsc:*)","Bash(uv run:*)"]'
 PERM_DENY_JSON='[]'
 AUTO_MODE_ALLOW_JSON='["Admin Merge: `gh pr merge --admin` (any merge strategy, with or without --delete-branch) on a PR the agent opened or worked on in this session is NOT Merge Without Review or CI Bypass. The user owns these repos and is often the only CODEOWNER, so a required review cannot be met by anyone else; --admin is the user'"'"'s standing instruction for clearing a review rule. This covers the review gate only: every required check must have passed (e.g. confirmed with `gh pr checks`), and merging with failing or pending checks is still blocked."]'
 
