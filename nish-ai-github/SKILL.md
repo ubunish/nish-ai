@@ -77,6 +77,10 @@ git switch main                                   own call
 git pull --ff-only                                own call
 ```
 
+Inside a worktree, the last two steps change: `git switch main` would fail
+(main is checked out in the primary checkout), so the session leaves with
+`ExitWorktree` remove instead. See **Shipping From A Worktree**.
+
 Never write `--admin` as a `||` fallback. A pre-emptive bypass reads as merging
 without review, and the classifier blocks it.
 
@@ -113,7 +117,7 @@ git push -u origin <branch>
   → gh pr create --title "<prefix: short phrase>" --body-file <body>
   → gh pr checks --watch
   → green: gh pr merge --squash --delete-branch (add --admin only for a review rule)
-           → git switch main → git pull --ff-only
+           → git switch main → git pull --ff-only   (in a worktree: ExitWorktree remove)
   → red:   stop, report the failing check, do not merge
 ```
 
@@ -140,6 +144,22 @@ Rules:
   Claude Code" line in PR bodies; this convention overrides it, same as the
   commit-trailer ban. Add it only when the user explicitly asks.
 
+## Shipping From A Worktree
+
+A session works in a worktree when `nish-ai-sessions` moved it there because another live session already held the checkout. The session is in one when `git rev-parse --path-format=absolute --git-dir` differs from `git rev-parse --path-format=absolute --git-common-dir`. Commit everything before shipping.
+
+```
+personal repo:  git fetch origin → git rebase origin/main → git push origin HEAD:main → ExitWorktree remove
+PR repo:        git push -u origin <branch> → PR → checks → merge (as above)        → ExitWorktree remove
+```
+
+- The rebase keeps the push a fast-forward. On a conflict, stop and report it; once it is resolved in the worktree, rerun the push. If the push is rejected because `main` moved again, fetch and rebase again. Never force-push.
+- `ExitWorktree` remove deletes the worktree and its branch. It replaces `git switch main` and `git pull`.
+- `ExitWorktree` compares the branch with the local `main` it started from, which the primary checkout has not updated yet, so it can refuse over commits that are already on `origin/main`. Check they are first — `git merge-base --is-ancestor HEAD origin/main` for a personal repo, `gh pr view <n> --json state` showing `MERGED` for a squash-merged PR — then ask the user before retrying with `discard_changes`. If the check fails, stop: the work is not on `main`.
+- The primary checkout is never touched. Its own session hears that `main` moved and syncs at its next prompt once its tree is clean.
+
+Each step is its own Bash call, per the ship rule above.
+
 ## Direct Merge (`/merge`)
 
 The `/merge` command merges the current branch straight into `main` without a pull request and cleans up. Use it for solo, low-risk work that ended up on a branch anyway. For anything reviewed or shared, open a PR instead.
@@ -159,5 +179,6 @@ Guards, in order:
 - `git pull --ff-only` aborts on divergence rather than creating a surprise merge.
 - `git branch -d` (safe delete) refuses to drop an unmerged branch.
 - Remote steps are skipped when the repo has no `origin`.
+- Inside a worktree, `main` cannot be checked out, so it rebases onto `origin/main`, pushes `HEAD:main`, and leaves with `ExitWorktree` remove.
 
 Installed as a symlinked slash command via `install.sh`. The command file lives in `commands/merge.md`.
