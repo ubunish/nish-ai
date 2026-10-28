@@ -18,6 +18,7 @@ Claude Code already keeps a live registry of sessions (`~/.claude/sessions/<pid>
             ▼
 nish-session peers ──→ live sessions sharing this repo's git common dir
 nish-session emit  ──→ ~/.claude/nish-ai-sessions/inbox/<session_id>.jsonl
+                       + events.jsonl (shared log the dashboard reads)
 nish-session drain ──→ prints and clears one session's inbox
 ```
 
@@ -49,6 +50,22 @@ off-goal fix ──→ nish-session claim "<topic>"
 ```
 
 The overlap question is `jev/overlap.json`, a single noul the CLI asks once per live peer claim (at most a goal and the latest claim per session, since a new claim replaces the last), asking whether the two pieces of work are the same bug, feature or change however they are phrased. A session with a live peer in the repo is told at SessionStart to claim before any off-goal fix. `nish-session claims` lists the live claims, one JSON object per line. Topics, including the goal taken from a session's first prompt, are sent to Jev for an allowlisted origin only; on the fail-open path they are printed cut to plain characters and labelled as data. Pass `--` before a topic that starts with a dash.
+
+## Dashboard
+
+A read-only TUI over the same state, built on nish-tui and refreshed every two seconds:
+
+```bash
+uv run ~/.claude/skills/nish-ai-sessions/dash/dash.py
+```
+
+| Panel | Shows |
+|-------|-------|
+| sessions | Each live session: name, repo, branch (marked when it is a worktree), busy/idle, pending inbox events |
+| claims | Every live claim across repos: session, goal or claim, topic |
+| recent events | The last 20 entries of `events.jsonl`, which `emit` appends to and trims to 500 lines once it passes 1000 |
+
+`dash/state.py` collects the state with the standard library only, so it runs and is tested without the TUI's dependencies; `uv run --no-project dash/state.py` prints it as JSON. The TUI collects in a worker thread with one git call per distinct checkout, so a slow mount delays a refresh rather than freezing the screen. Its `nish-tui` dependency is pinned to a commit.
 
 ## State Safety
 

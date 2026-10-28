@@ -19,6 +19,12 @@ umask 077
 REGISTRY="$HOME/.claude/sessions"
 STATE="$HOME/.claude/nish-ai-sessions"
 INBOX="$STATE/inbox"
+# Every emitted event is also logged here for the dashboard. tradeoff: trimmed
+# by rewrite once past the cap, fine for a handful of merges a day; rotate if
+# it is ever written hot.
+EVENTS="$STATE/events.jsonl"
+EVENTS_CAP=1000
+EVENTS_KEEP=500
 LOCK="$STATE/.lock"
 LOCK_TRIES=100   # x 0.02s: two seconds before a held lock is taken as stale
 CLAIMS="$STATE/claims"
@@ -106,10 +112,16 @@ cmd_emit() {
 
   ensure_state
   local box="$INBOX/$sid.jsonl"
-  # An append through a symlink would write into whatever file it points at.
-  [[ ! -L "$box" ]] || die "refusing a symlinked inbox"
   lock_state
+  # An append through a symlink would write into whatever file it points at;
+  # checked under the lock so another emit cannot swap one in between.
+  [[ ! -L "$box" && ! -L "$EVENTS" ]] || die "refusing a symlinked inbox or event log"
   printf '%s\n' "$event" >> "$box"
+  jq -c --arg to "$sid" '. + {to: $to}' <<<"$event" >> "$EVENTS"
+  if [[ "$(wc -l < "$EVENTS")" -gt "$EVENTS_CAP" ]]; then
+    local trimmed; trimmed="$(mktemp "$STATE/.events.XXXXXX")"
+    tail -n "$EVENTS_KEEP" "$EVENTS" > "$trimmed" && mv "$trimmed" "$EVENTS" || rm -f "$trimmed"
+  fi
 }
 
 cmd_drain() {

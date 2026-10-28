@@ -427,6 +427,60 @@ OUT="$(session_start beta "$SANDBOX/repo-d-wt")"
 [[ "$OUT" == *"nish-session claim"* && "$OUT" != *EnterWorktree* ]] \
   && ok "peer in another checkout gets the claim instruction only" || bad "peer in another checkout gets the claim instruction only" "got [$OUT]"
 
+echo "dashboard"
+for s in twin; do "$CLI" drain "$s" >/dev/null; done
+echo '{"type":"main_moved","sha":"d1"}' | "$CLI" emit twin
+echo '{"type":"main_moved","sha":"d2"}' | "$CLI" emit twin
+assert_eq "event log records the recipient" "twin" "$(tail -n1 "$STATE/events.jsonl" | jq -r '.to')"
+
+DASH_STATE="$(uv run --no-project "$REPO_DIR/nish-ai-sessions/dash/state.py" 2>/dev/null)"
+session_field() { # $1 = session name  $2 = jq field
+  jq -r --arg n "$1" ".sessions[] | select(.name == \$n) | $2" <<<"$DASH_STATE"
+}
+assert_eq "dashboard lists a session's repo and branch" "repo-a main" \
+  "$(session_field twin '"\(.repo) \(.branch)"')"
+assert_eq "dashboard marks a worktree checkout" "true" "$(session_field branch .worktree)"
+assert_eq "dashboard counts pending events" "2" "$(session_field twin .pending)"
+assert_eq "dashboard leaves out dead sessions" "" "$(session_field ghost .name)"
+[[ "$(jq -r '.claims[] | .topic' <<<"$DASH_STATE")" == *"build the dashboard"* ]] \
+  && ok "dashboard lists live claims" || bad "dashboard lists live claims"
+assert_eq "dashboard shows recent events" "d2" "$(jq -r '.events[-1].sha' <<<"$DASH_STATE")"
+"$CLI" drain twin >/dev/null
+
+seq 1 1000 | sed 's/.*/{"type":"filler","n":&}/' > "$STATE/events.jsonl"
+echo '{"type":"main_moved","sha":"newest"}' | "$CLI" emit twin
+assert_eq "event log is trimmed past its cap" "500" "$(wc -l < "$STATE/events.jsonl" | tr -d ' ')"
+assert_eq "trim keeps the newest event" "newest" "$(tail -n1 "$STATE/events.jsonl" | jq -r '.sha')"
+"$CLI" drain twin >/dev/null
+
+
+export PYTHONDONTWRITEBYTECODE=1   # keep __pycache__ out of the repo
+STATE_PY="$REPO_DIR/nish-ai-sessions/dash/state.py"
+label() { # $1 = session JSON -> checkout label
+  uv run --no-project python -c 'import json, sys; sys.path.insert(0, sys.argv[1]); import state; print(state.checkout_label(json.loads(sys.argv[2])))' \
+    "$(dirname "$STATE_PY")" "$1"
+}
+assert_eq "checkout label names a worktree" "wt (worktree)" "$(label '{"branch":"wt","worktree":true}')"
+assert_eq "checkout label for a plain branch" "main" "$(label '{"branch":"main","worktree":false}')"
+assert_eq "checkout label outside a repo" "-" "$(label '{"branch":"","worktree":false}')"
+
+start_live
+printf '{"pid":%s,"sessionId":"odd","cwd":5,"startedAt":"soon","name":["x"]}\n' "$LIVE" > "$REGISTRY/odd.json"
+printf '{"pid":%s,"sessionId":"huge","cwd":"/"}\n' "$((2**40))" > "$REGISTRY/huge.json"
+printf '\xff\xfe not utf-8\n' >> "$STATE/events.jsonl"
+DASH_STATE="$(uv run --no-project "$STATE_PY" 2>&1)"
+jq -e '.sessions | length > 0' <<<"$DASH_STATE" >/dev/null 2>&1 \
+  && ok "collector survives wrong-typed fields and bad bytes" || bad "collector survives wrong-typed fields and bad bytes" "got [${DASH_STATE:0:300}]"
+rm -f "$REGISTRY/odd.json" "$REGISTRY/huge.json"
+
+start_live; register "$LIVE" bracket "$CLAIMS_REPO" bracket
+claim /apart bracket "fix [/x] markup [bold]" >/dev/null
+EXPECTED="$(uv run --no-project "$STATE_PY" | jq -r '"sessions=\(.sessions | length) claims=\(.claims | length)"')"
+RENDERED="$(uv run --no-project --with 'textual>=0.74' \
+  --with 'nish-tui @ git+https://github.com/ubunish/nish-tui@6ec87b45f37cc645cecfd4e0852bf58a455bc011' \
+  python "$REPO_DIR/tests/fixtures/dash-headless.py" "$REPO_DIR/nish-ai-sessions/dash/dash.py" 2>&1 | tail -n1)"
+assert_eq "dashboard renders every session and claim, markup in a topic included" "$EXPECTED" "$RENDERED"
+
 echo "install wiring"
 # Stubs keep install offline: claude answers every plugin and MCP call, and a
 # failing curl stops the d2 and codebase-memory installers — including d2's
