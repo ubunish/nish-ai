@@ -1,13 +1,13 @@
 {
   "category": {
     "type": "choice",
-    "instructions": "The state is the first prompt of a coding session with an AI assistant. Which of these five tracks should the session run on? Choose by the kind of work the prompt asks for, not by the tone it is written in. Prefer the narrowest track that fits.",
+    "instructions": "The state is the first prompt of a coding session with an AI assistant. Which of these five tracks should the session run on? Choose by the kind of work the prompt asks for, not by the tone it is written in. When the prompt names a repository that configures the assistant itself, letting the assistant do something is a permission rule, not a feature. Prefer the narrowest track that fits.",
     "criteria": {
       "A": "Draft a plan. The prompt asks for a design, an approach, a breakdown of work, or a decision to be thought through before anything is built. Nothing is written except the plan itself.",
       "B": "Answer a question. The prompt asks what something is, how something works, which option is better, or why something behaves as it does. No file is expected to change.",
-      "C": "Build, fix, or restructure code. The prompt asks for a feature, a bug fix, a refactor, or any other change to how the software behaves.",
+      "C": "Build, fix, or restructure code. The prompt asks for a feature, a bug fix, a refactor, or another change to what the software does for its users. Granting the assistant a permission is not this.",
       "D": "Write or restructure documentation. The prompt asks for a README, a guide, an architecture note, a comment pass, or any other prose that ships with the code.",
-      "E": "A small piece of housekeeping. The prompt asks for a dependency bump, a file move, a rename, a config or ignore-file edit, or a one-off command — mechanical work with no design in it."
+      "E": "A small piece of housekeeping. The prompt asks for a dependency bump, a file move, a rename, a config or ignore-file edit, a permission or allow-list rule (letting the assistant run a command), or a one-off command — mechanical work with no design in it."
     }
   },
   "pasted_only": {
