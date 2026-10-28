@@ -42,6 +42,9 @@ done
 
 [[ -n "$QUESTIONS" ]] || die "usage: replay [--limit N] [--timeout S] [--answer-id ID] QUESTION_FILE"
 [[ -r "$QUESTIONS" ]] || die "question file not readable: $QUESTIONS"
+# Each sample runs from its session's directory, so a relative path would
+# resolve against the wrong one.
+QUESTIONS="$(cd "$(dirname "$QUESTIONS")" && pwd -P)/$(basename "$QUESTIONS")"
 [[ -d "$PROJECTS"  ]] || die "no transcripts at $PROJECTS"
 command -v jq   >/dev/null || die "jq not found"
 command -v perl >/dev/null || die "perl not found"
