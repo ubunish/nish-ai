@@ -166,6 +166,72 @@ new_repo "$SANDBOX/repo-c"
 assert_eq "solo session gets nothing" "" "$(session_start solo "$SANDBOX/repo-c")"
 assert_eq "outside a repo gets nothing" "" "$(session_start solo "$SANDBOX/plain")"
 
+echo "main-moved events"
+post_merge() { # $1 = session id  $2 = cwd  $3 = command  $4 = interrupted (default false)
+  jq -nc --arg s "$1" --arg c "$2" --arg cmd "$3" --argjson i "${4:-false}" \
+    '{session_id:$s, cwd:$c, tool_input:{command:$cmd}, tool_response:{interrupted:$i}}' \
+    | bash "$HOOKS/sessions-post-merge.sh" >/dev/null 2>&1
+}
+moved_count() { # $1 = session id -> main_moved events drained from its inbox
+  "$CLI" drain "$1" | jq -r 'select(.type == "main_moved") | .type' | wc -l | tr -d ' '
+}
+for s in self twin branch other late early; do "$CLI" drain "$s" >/dev/null; done
+
+post_merge late "$SANDBOX/repo-a" 'gh pr merge 5 --squash --delete-branch'
+assert_eq "pr merge reaches a peer in the same checkout" "1" "$(moved_count twin)"
+assert_eq "pr merge reaches a peer in a worktree"         "1" "$(moved_count branch)"
+assert_eq "pr merge skips another repo"                   "0" "$(moved_count other)"
+assert_eq "pr merge skips the merging session"            "0" "$(moved_count late)"
+for s in self early; do "$CLI" drain "$s" >/dev/null; done
+
+post_merge late "$SANDBOX/repo-a" 'git push'
+assert_eq "bare push from main emits"                "1" "$(moved_count twin)"
+post_merge branch "$SANDBOX/repo-a-wt" 'git push'
+assert_eq "bare push from a branch is silent"        "0" "$(moved_count twin)"
+post_merge branch "$SANDBOX/repo-a-wt" 'git rebase origin/main && git push origin HEAD:main'
+assert_eq "HEAD:main push from a worktree emits"     "1" "$(moved_count twin)"
+post_merge late "$SANDBOX/repo-a" 'git push origin HEAD'
+assert_eq "push of HEAD from main emits"             "1" "$(moved_count twin)"
+post_merge late "$SANDBOX/repo-a" 'git push -u origin main'
+assert_eq "push -u origin main emits"                "1" "$(moved_count twin)"
+post_merge solo "$SANDBOX/repo-c" "cd $SANDBOX/repo-a && git push origin main"
+assert_eq "cd into another repo routes to its peers" "1" "$(moved_count twin)"
+post_merge solo "$SANDBOX" "cd repo-a && git push"
+assert_eq "relative cd is resolved from the session" "1" "$(moved_count twin)"
+post_merge late "$SANDBOX/repo-a" 'git push origin --delete main'
+assert_eq "deleting main is silent"                  "0" "$(moved_count twin)"
+post_merge late "$SANDBOX/repo-a" 'gh pr merge 5 -s -d'
+assert_eq "pr merge with short delete-branch flag emits" "1" "$(moved_count twin)"
+post_merge late "$SANDBOX/repo-a" 'gh pr merge 5 --auto --squash'
+assert_eq "queued auto-merge is silent"              "0" "$(moved_count twin)"
+post_merge late "$SANDBOX/repo-a" 'git push --dry-run'
+assert_eq "dry-run push is silent"                   "0" "$(moved_count twin)"
+post_merge late "$SANDBOX/repo-a" 'git push origin HEAD:main && git push origin --delete feat-x'
+assert_eq "cleanup delete after a main push still emits" "1" "$(moved_count twin)"
+post_merge late "$SANDBOX/repo-a" 'git push --dry-run origin main && gh pr merge 5'
+assert_eq "merge after a dry run still emits"        "1" "$(moved_count twin)"
+post_merge solo "$SANDBOX/repo-c" "cd $SANDBOX/repo-a && git push origin main && cd $SANDBOX/repo-c"
+assert_eq "cd after the push does not reroute"       "1" "$(moved_count twin)"
+post_merge solo "$SANDBOX/repo-c" "cd $SANDBOX/repo-a && git push origin main && cd -"
+assert_eq "cd - after the push does not drop it"     "1" "$(moved_count twin)"
+post_merge late "$SANDBOX/repo-a" 'git push origin HEAD 2>&1'
+assert_eq "redirected push of HEAD emits"            "1" "$(moved_count twin)"
+post_merge late "$SANDBOX/repo-a" 'git push origin 2>&1 | tail -n 3'
+assert_eq "redirected bare push emits"               "1" "$(moved_count twin)"
+post_merge late "$SANDBOX/repo-a" 'git push origin HEAD > /dev/null 2>&1'
+assert_eq "push redirected to a file emits"          "1" "$(moved_count twin)"
+post_merge late "$SANDBOX/repo-a" 'git push origin refs/heads/main'
+assert_eq "refs/heads/main refspec emits"            "1" "$(moved_count twin)"
+post_merge late "$SANDBOX/repo-a" 'git commit -m "then git push origin main"'
+assert_eq "quoted push text is silent"               "0" "$(moved_count twin)"
+post_merge late "$SANDBOX/repo-a" 'git push origin feat/main-menu'
+assert_eq "push of another branch is silent"         "0" "$(moved_count twin)"
+post_merge late "$SANDBOX/repo-a" 'git status'
+assert_eq "unrelated command is silent"              "0" "$(moved_count twin)"
+post_merge late "$SANDBOX/repo-a" 'gh pr merge 5' true
+assert_eq "interrupted merge is silent"              "0" "$(moved_count twin)"
+for s in self twin branch other late early; do "$CLI" drain "$s" >/dev/null; done
+
 echo "install wiring"
 # Stubs keep install offline: claude answers every plugin and MCP call, and a
 # failing curl stops the d2 and codebase-memory installers — including d2's
@@ -178,7 +244,7 @@ printf '#!/usr/bin/env bash\nexit 1\n' > "$STUB_BIN/curl"
 chmod +x "$STUB_BIN/claude" "$STUB_BIN/curl"
 run_install() { HOME="$INSTALL_HOME" PATH="$STUB_BIN:$PATH" bash "$REPO_DIR/install.sh" "$1" >/dev/null 2>&1; }
 SETTINGS="$INSTALL_HOME/.claude/settings.json"
-SESSION_HOOKS=("SessionStart:sessions-session-start.sh")
+SESSION_HOOKS=("SessionStart:sessions-session-start.sh" "PostToolUse:sessions-post-merge.sh")
 hook_present() { # $1 = event  $2 = script name
   jq -e --arg e "$1" --arg m "$2" '(.hooks[$e] // []) | map(.hooks[]?.command) | any(contains($m))' "$SETTINGS" >/dev/null 2>&1
 }
@@ -186,6 +252,8 @@ run_install install
 for pair in "${SESSION_HOOKS[@]}"; do
   hook_present "${pair%%:*}" "${pair#*:}" && ok "install adds ${pair#*:}" || bad "install adds ${pair#*:}"
 done
+assert_eq "post-merge hook runs on Bash only" "Bash" \
+  "$(jq -r '.hooks.PostToolUse[] | select(any(.hooks[]; .command | contains("sessions-post-merge"))) | .matcher' "$SETTINGS")"
 run_install uninstall
 for pair in "${SESSION_HOOKS[@]}"; do
   hook_present "${pair%%:*}" "${pair#*:}" && bad "uninstall removes ${pair#*:}" || ok "uninstall removes ${pair#*:}"

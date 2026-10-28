@@ -46,3 +46,4 @@ Each hook is silent unless an event concerns its session, so a solo session spen
 | Hook | Event | Fires when |
 |------|-------|------------|
 | `sessions-session-start.sh` | SessionStart | A live peer that started earlier sits in the same checkout: injects an instruction to `EnterWorktree`, named after the goal, before the first edit. Only the newer session moves. |
+| `sessions-post-merge.sh` | PostToolUse (Bash) | This session finished `gh pr merge` (not `--auto`), a `git push` whose refspec names `main` (`main`, `HEAD:main`, `refs/heads/main`), or a bare `git push` / `git push origin HEAD` from `main`: appends `{type: main_moved, sha, from}` to every live peer's inbox. The command is read per segment, following `cd` hops up to the push, so `cd <repo> && git push` routes to that repo. Deletes and dry runs are ignored; merges made outside a Claude session are not seen. |

@@ -64,6 +64,11 @@ UV_SS_MARKER='uv-session-start\.sh'
 # a solo session gets no output.
 SESSIONS_SS_CMD='bash "$HOME/.claude/skills/nish-ai-sessions/hooks/sessions-session-start.sh"'
 SESSIONS_SS_MARKER='sessions-session-start\.sh'
+# PostToolUse on Bash: after this session merges a PR or pushes main, each live
+# peer in the repo gets a main_moved event in its inbox. No polling.
+SESSIONS_PT_CMD='bash "$HOME/.claude/skills/nish-ai-sessions/hooks/sessions-post-merge.sh"'
+SESSIONS_PT_MARKER='sessions-post-merge\.sh'
+SESSIONS_PT_MATCHER='Bash'
 
 # Retired Jev bash gate. It added permission prompts on top of auto mode's own
 # risk checks, so it was removed. The marker stays so install and uninstall
@@ -760,10 +765,12 @@ status_recognition_hooks() {
 
 install_sessions_hooks() {
   add_hook SessionStart "$SESSIONS_SS_CMD" "$SESSIONS_SS_MARKER" "sessions SessionStart hook"
+  add_hook PostToolUse  "$SESSIONS_PT_CMD" "$SESSIONS_PT_MARKER" "sessions main-moved emitter" "$SESSIONS_PT_MATCHER"
 }
 
 uninstall_sessions_hooks() {
   remove_hook SessionStart "$SESSIONS_SS_MARKER" "sessions SessionStart hook"
+  remove_hook PostToolUse  "$SESSIONS_PT_MARKER" "sessions main-moved emitter"
 }
 
 status_sessions_hooks() {
@@ -772,7 +779,7 @@ status_sessions_hooks() {
     return
   fi
   local ev mk
-  for pair in "SessionStart:$SESSIONS_SS_MARKER"; do
+  for pair in "SessionStart:$SESSIONS_SS_MARKER" "PostToolUse:$SESSIONS_PT_MARKER"; do
     ev="${pair%%:*}"; mk="${pair##*:}"
     if hook_installed_for "$ev" "$mk"; then
       printf "  %-10s sessions hook (%s)\n" "installed" "$ev"
